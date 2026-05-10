@@ -1,19 +1,45 @@
 ---
 auto_execution_mode: 3
+description: Overall tasks
 ---
-# 🚀 Phase 1: Autonomous Sprint Backlog
+# WORKFLOW: backlog (Civic-Link Master Roadmap)
 
-- [x] **Task 1: The Seed Injection**
-  - Run `python app/seed_kphb.py` to populate 50 users and 30 commute offers.
-  - Verify that the Geospatial coordinates are correctly mapped between KPHB Phase 3 and Mindspace.
+## ✅ PHASE 1: Data & Privacy Layer (COMPLETED)
+- [x] Define PostGIS schema with TIMESTAMP WITHOUT TIME ZONE.
+- [x] Implement Bcrypt 72-byte truncation limit.
+- [x] Eradicate raw emails (implement email_hash & email_domain).
 
-- [x] **Task 2: The Safety Stress Test**
-  - Write a script to simulate 10 "Women-Only" requests.
-  - Generate a `safety_audit.log` showing that 0 male drivers were matched.
+## ✅ PHASE 2: Matching Engine & Safety (COMPLETED)
+- [x] Build positional-only SQL parameter binding ($1, $2).
+- [x] Lock down async lifecycle (`greenlet_spawn` / `rollback` fixes).
+- [x] Verify Hard-Reject Safety Logic (0 male drivers matched for women-only requests).
 
-- [x] **Task 3: The Telemetry Simulation**
-  - Create a Python script that mocks 50Hz IMU data (accelerometer/gyroscope).
-  - POST this data to `/api/v1/telemetry` and verify the `civic_score` updates in the DB.
+## ✅ PHASE 3: Telemetry Engine (COMPLETED)
+- [x] Build EMA Civic Score backend algorithm (S_new = S_old * 0.85 + event * 0.15).
+- [x] Ingest 50Hz JSON payloads via asyncio without timeouts.
+- [x] Verify score degradation on swerves and mathematical recovery.
 
-- [x] **Task 4: The Clean-Up Worker**
-  - Implement the "Delete-by-Default" privacy worker to anonymize location data after 24h.
+---
+
+## 🚀 PHASE 4: Flutter Integration (ACTIVE - Use `flutterint` workflow)
+
+**Milestone 4.1: Zero-Liability Auth Handshake** (<- WE ARE HERE)
+- [ ] Kimi: Generate `privacy_crypto.dart` (SHA-256 hashing) and `auth_service.dart` (Dio network calls).
+- [ ] Gemini CLI: Test login execution to verify raw email is NEVER sent to the backend.
+
+**Milestone 4.2: 50Hz IMU Telemetry Engine (Critical Path)**
+- [ ] Kimi: Generate `telemetry_isolate.dart` using `sensors_plus`.
+- [ ] Kimi: Implement buffer logic (batch 10 readings per 200ms) to reduce HTTP overhead while maintaining 50Hz density.
+- [ ] Gemini CLI: Verify the Flutter Isolate can transmit data without blocking the main UI thread.
+
+**Milestone 4.3: Real-Time Civic Score UI**
+- [ ] Kimi: Build a dynamic dashboard using `fl_chart` and `flutter_riverpod` or `bloc`.
+- [ ] Kimi: Map score thresholds to UI colors (Green/Cruising, Yellow/Warning, Red/Aggressive).
+- [ ] Gemini CLI: Verify UI state updates seamlessly when the backend pushes a new score.
+
+---
+
+## 🏁 PHASE 5: The Police Pitch Demo Prep
+- [ ] End-to-End System Test (Live phone -> Backend -> Database -> Live UI update).
+- [ ] Polish UI transitions and error states.
+- [ ] Final architecture freeze.

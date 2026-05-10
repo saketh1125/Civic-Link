@@ -8,9 +8,10 @@ This script:
 """
 
 import asyncio
+import hashlib
 import random
 import sys
-from datetime import date, time, timedelta, timezone
+from datetime import date, time, timedelta
 
 from geoalchemy2 import WKTElement
 from sqlalchemy import select, text
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, init_db
 from app.core.exceptions import CivicLinkSafetyException
+from app.core.security import get_password_hash
 from app.models.commute import Commute, CommuteOffer, CommuteStatus
 from app.models.user import Gender, User, UserRole, VerificationStatus
 from app.services.match_service import MatchingService
@@ -51,29 +53,48 @@ async def seed_users(session: AsyncSession) -> list[User]:
     """Create 50 users: 25 Female, 25 Male, all @company.com."""
     users = []
     
+    # Default password for seeded users (hashed with bcrypt)
+    default_password_hash = get_password_hash("SeedPass123!")
+    
     # 25 Female users
     for i in range(25):
+        email = f"female{i+1}@company.com"
+        email_hash = hashlib.sha256(email.lower().encode()).hexdigest()
+        email_domain = email.split('@')[-1]
+        
         user = User(
-            email=f"female{i+1}@company.com",
-            hashed_email=f"hash_female{i+1}@company.com",
-            phone=f"+91-98765-{43210 + i}",
+            email_hash=email_hash,
+            email_domain=email_domain,
+            phone_number=f"+91-98765-{43210 + i}",
+            full_name=f"Female User {i+1}",
             gender=Gender.FEMALE,
             role=UserRole.COMMUTER,
             verification_status=VerificationStatus.VERIFIED,
             is_active=True,
+            password_hash=default_password_hash,
+            company_name="Civic-Link Corp",
+            employee_id=f"EMP-{1000 + i}",
         )
         users.append(user)
     
     # 25 Male users
     for i in range(25):
+        email = f"male{i+1}@company.com"
+        email_hash = hashlib.sha256(email.lower().encode()).hexdigest()
+        email_domain = email.split('@')[-1]
+        
         user = User(
-            email=f"male{i+1}@company.com",
-            hashed_email=f"hash_male{i+1}@company.com",
-            phone=f"+91-98765-{54321 + i}",
+            email_hash=email_hash,
+            email_domain=email_domain,
+            phone_number=f"+91-98765-{54321 + i}",
+            full_name=f"Male User {i+1}",
             gender=Gender.MALE,
             role=UserRole.COMMUTER,
             verification_status=VerificationStatus.VERIFIED,
             is_active=True,
+            password_hash=default_password_hash,
+            company_name="Civic-Link Corp",
+            employee_id=f"EMP-{2000 + i}",
         )
         users.append(user)
     

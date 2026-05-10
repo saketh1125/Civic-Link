@@ -1,6 +1,6 @@
 """Civic-Link DPI - SQLAlchemy 2.0 Base Model"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -12,6 +12,7 @@ class BaseModel(DeclarativeBase):
     """Base model with common columns for all Civic-Link DPI entities.
 
     Uses SQLAlchemy 2.0 declarative mapping style.
+    Uses naive datetimes (no timezone) to match PostgreSQL TIMESTAMP WITHOUT TIME ZONE.
     """
 
     __abstract__ = True
@@ -23,12 +24,12 @@ class BaseModel(DeclarativeBase):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(),
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(),
+        onupdate=lambda: datetime.now(),
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(

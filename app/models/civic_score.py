@@ -104,15 +104,15 @@ class CivicScore(BaseModel):
 
     # Last Event Timestamps (for cooldown logic)
     last_swerve_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     last_speeding_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     last_hard_brake_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
 
@@ -132,8 +132,8 @@ class CivicScore(BaseModel):
 
     # Score History (last calculated values)
     last_calculated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        DateTime(timezone=False),
+        default=lambda: datetime.now(),
         nullable=False,
     )
     calculation_version: Mapped[str] = mapped_column(
@@ -202,8 +202,9 @@ class CivicScore(BaseModel):
             hard_brake_detected: Whether hard braking was detected
             rapid_accel_detected: Whether rapid acceleration was detected
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
         cooldown_ms = 60000  # 1 minute debounce per manifesto
+
 
         # Check cooldown before counting swerve
         if swerve_detected:
@@ -232,7 +233,7 @@ class CivicScore(BaseModel):
 
         # Recalculate score
         self.score = self.calculate_score()
-        self.last_calculated_at = now
+        self.last_calculated_at = datetime.now()
 
     def record_trip(self, distance_km: float, duration_hours: float) -> None:
         """Record a completed trip."""

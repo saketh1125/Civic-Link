@@ -20,7 +20,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a bcrypt hash.
     
-    Bcrypt has a 72-byte limit, so passwords are truncated to 72 chars.
+    Bcrypt has a 72-byte limit. We truncate to 72 bytes (not chars)
+    to handle multi-byte characters safely.
     
     Args:
         plain_password: The plain text password from user input
@@ -29,16 +30,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    # Bcrypt algorithm limit: passwords longer than 72 bytes are truncated
-    # We explicitly truncate to ensure consistent behavior
-    truncated_password = plain_password[:72]
+    # Bcrypt algorithm limit: 72 bytes maximum
+    # Truncate by bytes to handle multi-byte UTF-8 characters safely
+    truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', 'ignore')
     return pwd_context.verify(truncated_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """Generate a bcrypt hash from a plain password.
     
-    Bcrypt has a 72-byte limit, so passwords are truncated to 72 chars.
+    Bcrypt has a 72-byte limit. We truncate to 72 bytes (not chars)
+    to handle multi-byte characters safely.
     
     Args:
         password: The plain text password to hash
@@ -46,9 +48,9 @@ def get_password_hash(password: str) -> str:
     Returns:
         Bcrypt hashed password string
     """
-    # Bcrypt algorithm limit: passwords longer than 72 bytes are truncated
-    # We explicitly truncate to ensure consistent behavior
-    truncated_password = password[:72]
+    # Bcrypt algorithm limit: 72 bytes maximum
+    # Truncate by bytes to handle multi-byte UTF-8 characters safely
+    truncated_password = password.encode('utf-8')[:72].decode('utf-8', 'ignore')
     return pwd_context.hash(truncated_password)
 
 

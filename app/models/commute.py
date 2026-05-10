@@ -176,20 +176,20 @@ class Commute(BaseModel):
 
     # Expiration for Redis caching
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(),
         comment="Redis cache expiration timestamp",
     )
 
     # Privacy: Anonymization tracking
     origin_anonymized_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
         comment="GDPR: When origin coordinates were anonymized",
     )
     destination_anonymized_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
         comment="GDPR: When destination coordinates were anonymized",
     )
@@ -364,11 +364,11 @@ class CommuteOffer(BaseModel):
 
     # Privacy: Anonymization tracking
     origin_anonymized_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     destination_anonymized_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
 

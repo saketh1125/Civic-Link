@@ -118,7 +118,7 @@ class User(BaseModel):
         nullable=False,
     )
     last_login: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     role: Mapped[UserRole] = mapped_column(
@@ -182,4 +182,4 @@ class User(BaseModel):
 
     def update_last_login(self) -> None:
         """Update last login timestamp."""
-        self.last_login = datetime.now(timezone.utc)
+        self.last_login = datetime.now()

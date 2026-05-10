@@ -97,19 +97,19 @@ class CommuteMatch(BaseModel):
 
     # Timestamps
     confirmed_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     started_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
     cancelled_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
     )
 
@@ -178,7 +178,7 @@ class CommuteMatch(BaseModel):
 
     # Privacy: Anonymization tracking
     anonymized_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True,
         comment="GDPR: When PII in this match was anonymized",
     )
@@ -211,19 +211,19 @@ class CommuteMatch(BaseModel):
     def confirm(self) -> None:
         """Mark match as confirmed."""
         self.status = MatchStatus.CONFIRMED
-        self.confirmed_at = datetime.now(timezone.utc)
+        self.confirmed_at = datetime.now()
 
     def start(self) -> None:
         """Mark match as in progress."""
         self.status = MatchStatus.IN_PROGRESS
-        self.started_at = datetime.now(timezone.utc)
+        self.started_at = datetime.now()
 
     def complete(self) -> None:
         """Mark match as completed."""
         self.status = MatchStatus.COMPLETED
-        self.completed_at = datetime.now(timezone.utc)
+        self.completed_at = datetime.now()
 
     def cancel(self) -> None:
         """Mark match as cancelled."""
         self.status = MatchStatus.CANCELLED
-        self.cancelled_at = datetime.now(timezone.utc)
+        self.cancelled_at = datetime.now()

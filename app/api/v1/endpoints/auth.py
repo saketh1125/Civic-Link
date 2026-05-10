@@ -3,13 +3,11 @@
 User registration and login with JWT token generation.
 """
 
-import hashlib
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,12 +23,19 @@ settings = get_settings()
 
 # Request/Response Schemas
 class UserRegisterRequest(BaseModel):
-    """Request model for user registration."""
+    """Request model for user registration (Zero-Liability)."""
     
-    email: EmailStr = Field(
+    email_hash: str = Field(
         ...,
-        description="Corporate email address",
-        example="john.doe@company.com",
+        min_length=64,
+        max_length=64,
+        description="SHA-256 hash of corporate email",
+        example="12b9adeb0dd75783f55efa7bedb52b448267daa7ad659dda992fe7621fe12ae4",
+    )
+    email_domain: str = Field(
+        ...,
+        description="Corporate email domain",
+        example="police.gov.in",
     )
     password: str = Field(
         ...,
@@ -66,11 +71,11 @@ class UserRegisterRequest(BaseModel):
         example="EMP12345",
     )
     
-    @field_validator("email")
+    @field_validator("email_domain")
     @classmethod
     def validate_whitelisted_domain(cls, v: str) -> str:
         """Validate that email domain is whitelisted."""
-        domain = v.split("@")[-1].lower()
+        domain = v.lower()
         
         whitelisted = [d.lower() for d in settings.whitelisted_domains]
         
@@ -80,6 +85,25 @@ class UserRegisterRequest(BaseModel):
                 f"Allowed domains: {', '.join(settings.whitelisted_domains)}"
             )
         return v
+
+
+class UserLoginRequest(BaseModel):
+    """Request model for user login (Zero-Liability)."""
+    
+    email_hash: str = Field(
+        ...,
+        min_length=64,
+        max_length=64,
+        description="SHA-256 hash of corporate email",
+    )
+    email_domain: str = Field(
+        ...,
+        description="Corporate email domain",
+    )
+    password: str = Field(
+        ...,
+        description="Password",
+    )
 
 
 class TokenResponse(BaseModel):
@@ -114,32 +138,22 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-# Helper functions
-def hash_email(email: str) -> str:
-    """Generate SHA-256 hash of email for deduplication."""
-    return hashlib.sha256(email.lower().encode()).hexdigest()
-
-
-def get_email_domain(email: str) -> str:
-    """Extract domain from email address."""
-    return email.split("@")[-1].lower()
-
-
 @router.post(
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user",
     description="""
-    Register a new user with corporate email verification.
+    Register a new user with Zero-Liability privacy.
+    
+    The client hashes the email and provides the domain.
+    Raw emails NEVER reach the server.
     
     Email domain must be in the whitelist:
     - cmrcet.ac.in
     - company.com
     - govt.in
     - hyderabadpolice.gov.in
-    
-    Password is hashed using bcrypt before storage.
     """,
 )
 async def register(
@@ -149,7 +163,7 @@ async def register(
     """Register a new user.
     
     Args:
-        request: Registration details
+        request: Registration details (Privacy-enhanced)
         session: Database session
         
     Returns:
@@ -159,9 +173,8 @@ async def register(
         HTTPException: 400 if email or phone already exists
     """
     # Check if email already exists
-    email_hash = hash_email(request.email)
     result = await session.execute(
-        select(User).where(User.email_hash == email_hash)
+        select(User).where(User.email_hash == request.email_hash)
     )
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -180,19 +193,18 @@ async def register(
         )
     
     # Create new user
-    email_domain = get_email_domain(request.email)
     password_hash = get_password_hash(request.password)
     
     user = User(
-        email_hash=email_hash,
-        email_domain=email_domain,
+        email_hash=request.email_hash,
+        email_domain=request.email_domain,
         phone_number=request.phone_number,
         full_name=request.full_name,
         gender=request.gender,
         company_name=request.company_name,
         employee_id=request.employee_id,
         password_hash=password_hash,
-        verification_status=VerificationStatus.VERIFIED,  # Auto-verify for now
+        verification_status=VerificationStatus.VERIFIED,
         role=UserRole.COMMUTER,
     )
     
@@ -216,21 +228,20 @@ async def register(
     response_model=TokenResponse,
     summary="Login and get JWT access token",
     description="""
-    OAuth2 password flow login endpoint.
+    Zero-Liability login endpoint.
     
-    Returns a JWT access token valid for 60 minutes.
-    Use the token in the Authorization header as:
-    `Bearer <token>`
+    The client transmits email_hash and email_domain.
+    Raw emails NEVER reach the server.
     """,
 )
 async def login_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    request: UserLoginRequest,
     session: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     """Authenticate user and issue JWT access token.
     
     Args:
-        form_data: OAuth2 username (email) and password
+        request: Login details (Privacy-enhanced)
         session: Database session
         
     Returns:
@@ -239,12 +250,9 @@ async def login_access_token(
     Raises:
         HTTPException: 401 if credentials are invalid
     """
-    # Hash email to look up user
-    email_hash = hash_email(form_data.username)
-    
     # Query user by email hash
     result = await session.execute(
-        select(User).where(User.email_hash == email_hash)
+        select(User).where(User.email_hash == request.email_hash)
     )
     user = result.scalar_one_or_none()
     
@@ -253,14 +261,12 @@ async def login_access_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if not verify_password(form_data.password, user.password_hash):
+    if not verify_password(request.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
     
     # Update last login timestamp

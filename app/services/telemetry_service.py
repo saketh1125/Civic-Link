@@ -263,7 +263,7 @@ class TelemetryService:
             # Update swerve count
             if swerve_events:
                 civic_score.swerve_count += len(swerve_events)
-                civic_score.last_swerve_at = datetime.now(timezone.utc)
+                civic_score.last_swerve_at = datetime.now()
                 civic_score.swerve_penalty = civic_score.swerve_count * 5.0
 
             # Calculate new score
@@ -274,7 +274,7 @@ class TelemetryService:
                 speeding_count=civic_score.speeding_count,
             )
             civic_score.score = new_score
-            civic_score.last_calculated_at = datetime.now(timezone.utc)
+            civic_score.last_calculated_at = datetime.now()
 
             result.new_score = new_score
 

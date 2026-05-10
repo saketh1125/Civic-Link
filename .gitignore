@@ -15,6 +15,10 @@ eggs/
 .eggs/
 lib/
 lib64/
+
+# Flutter - Allow Flutter lib/ directory (different from Python lib/)
+!/lib/
+!/lib/**
 parts/
 sdist/
 var/
@@ -68,3 +72,57 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+.gemini/
+gha-creds-*.json
+
+# Coverage
+coverage/
+*.cover
+
+# mypy
+.mypy_cache/
+*.dm.json
+*.dm3
+*.pdb
+
+# Ruff
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+__MACOSX/
+
+# Temporary
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Flutter/Dart
+lib/
+*.dart
+!.dart/**
+!lib/**
+test_*.dart
+
+# Python simulation/test files
+test_*.py
+*_sim*.py
+emulate*.py
+verify*.py
+*_stress*.py
+*_verification*.py
+backend_verification*.md
+
+# Workflows (non-essential)
+.windsurf/

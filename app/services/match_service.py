@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
 from geoalchemy2 import Geography
+from geoalchemy2.shape import to_shape
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -69,30 +70,30 @@ class MatchingService:
                 c.id as commute_id,
                 ST_Distance(
                     c.origin::geography,
-                    :offer_origin::geography
+                    $7::geography
                 ) as pickup_distance,
                 c.available_seats,
                 c.departure_time,
                 u.gender as driver_gender,
                 c.is_women_only as commute_women_only,
-                :offer_women_only as offer_women_only
+                :1 as offer_women_only
             FROM commutes c
             JOIN users u ON c.driver_id = u.id
-            WHERE c.status = 'active'
+            WHERE c.status::text = 'active'
                 AND c.available_seats > 0
-                AND c.departure_date = :departure_date
-                AND c.departure_time BETWEEN :time_min AND :time_max
+                AND c.departure_date = :2
+                AND c.departure_time BETWEEN :3 AND :4
                 -- CRITICAL: Hard-reject safety clause (MANDATORY)
                 AND (
-                    (:offer_women_only = FALSE OR u.gender = 'female')
+                    (:1::boolean = FALSE OR u.gender::text = 'female')
                     AND
-                    (c.is_women_only = FALSE OR :passenger_gender = 'female')
+                    (c.is_women_only = FALSE OR :5::text = 'female')
                 )
                 -- Geospatial: Within 500m of pickup point
                 AND ST_DWithin(
                     c.origin::geography,
-                    :offer_origin::geography,
-                    :radius
+                    :7::geography,
+                    :6
                 )
             ORDER BY pickup_distance ASC
             LIMIT 50
@@ -115,21 +116,65 @@ class MatchingService:
         if passenger_gender is None:
             raise CivicLinkSafetyException("Passenger gender not found for safety check")
 
-        # Execute the query with safety parameters
-        result = await self.session.execute(
-            sql,
-            {
-                "offer_origin": f"SRID=4326;POINT({offer.origin})",
-                "offer_women_only": offer.is_women_only,
-                "passenger_gender": passenger_gender.value,
-                "departure_date": offer.preferred_departure_date,
-                "time_min": time_min,
-                "time_max": time_max,
-                "radius": search_radius,
-            },
+        # Extract coordinates from GeoAlchemy object
+        origin_shape = to_shape(offer.origin)
+        lon = origin_shape.x
+        lat = origin_shape.y
+
+        # Execute the query with safety parameters (positional $1-$7)
+        # Order: $1=is_women_only, $2=date, $3=time_min, $4=time_max, $5=gender, $6=radius, $7=origin_point
+        # exec_driver_sql bypasses SQLAlchemy's parser and sends the $1 syntax directly to asyncpg.
+        sql_str = """
+            SELECT
+                c.id as commute_id,
+                ST_Distance(
+                    c.origin::geography,
+                    $7::geography
+                ) as pickup_distance,
+                c.available_seats,
+                c.departure_time,
+                u.gender as driver_gender,
+                c.is_women_only as commute_women_only,
+                $1::boolean as offer_women_only
+            FROM commutes c
+            JOIN users u ON c.driver_id = u.id
+            WHERE UPPER(c.status::text) = 'ACTIVE'
+                AND c.available_seats > 0
+                AND c.departure_date = $2
+                AND c.departure_time BETWEEN $3 AND $4
+                -- CRITICAL: Hard-reject safety logic (MANDATORY)
+                AND (
+                    ($1::boolean = FALSE OR UPPER(u.gender::text) = 'FEMALE')
+                    AND
+                    (c.is_women_only = FALSE OR UPPER($5::text) = 'FEMALE')
+                )
+                -- Geospatial: Within 500m of pickup point
+                AND ST_DWithin(
+                    c.origin::geography,
+                    $7::geography,
+                    $6
+                )
+            ORDER BY pickup_distance ASC
+            LIMIT 50
+        """
+        
+        params = (
+            offer.is_women_only,
+            offer.preferred_departure_date,
+            time_min,
+            time_max,
+            passenger_gender.value,
+            search_radius,
+            f"SRID=4326;POINT({lon} {lat})",
         )
+        
+        # Use exec_driver_sql to satisfy positional binding requirement
+        # and prevent SQLAlchemy from attempting to parse $1 syntax.
+        conn = await self.session.connection()
+        result = await conn.exec_driver_sql(sql_str, params)
 
         rows = result.fetchall()
+        
         if not rows:
             return []
 
