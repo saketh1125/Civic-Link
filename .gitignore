@@ -13,7 +13,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 
 # Flutter - Allow Flutter lib/ directory (different from Python lib/)
@@ -53,9 +53,6 @@ verification_results.txt
 # Docker
 .dockerignore
 docker-compose.override.yml
-
-# Documentation (excluded from version control)
-documentation/
 
 # Data
 data/
@@ -108,21 +105,9 @@ __MACOSX/
 *.swo
 *~
 
-# Flutter/Dart
-lib/
-*.dart
-!.dart/**
-!lib/**
-test_*.dart
-
-# Python simulation/test files
-test_*.py
-*_sim*.py
-emulate*.py
-verify*.py
-*_stress*.py
-*_verification*.py
-backend_verification*.md
+# Python simulation/test output (not source)
+test_output/
+*.testresult
 
 # Workflows (non-essential)
 .windsurf/
