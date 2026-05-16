@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'services/auth_service.dart';
+import 'providers/auth_provider.dart';
 import 'ui/screens/dashboard_screen.dart';
 
 // =============================================================================
@@ -45,6 +46,7 @@ Future<void> main() async {
     ProviderScope(
       child: MyApp(
         isAuthenticated: token != null,
+        authService: authService,
       ),
     ),
   );
@@ -57,17 +59,58 @@ Future<void> main() async {
 /// Root [MaterialApp] wrapped in [ProviderScope].
 ///
 /// Routes to [DashboardScreen] if authenticated, otherwise [LoginScreen].
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   /// Whether a valid auth token was found on startup.
   final bool isAuthenticated;
+  final AuthService authService;
 
   const MyApp({
     super.key,
     required this.isAuthenticated,
+    required this.authService,
   });
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _sessionRestored = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    if (widget.isAuthenticated) {
+      final userId = await widget.authService.getUserId();
+      final token = await widget.authService.getAccessToken();
+      if (userId != null && token != null) {
+        // Session is valid, proceed to dashboard
+      }
+    }
+    if (mounted) {
+      setState(() => _sessionRestored = true);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!_sessionRestored) {
+      return MaterialApp(
+        title: 'Civic-Link',
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          backgroundColor: kPrimaryBlack,
+          body: Center(
+            child: CircularProgressIndicator(color: kAccentGreen),
+          ),
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'Civic-Link',
       debugShowCheckedModeBanner: false,
@@ -135,7 +178,7 @@ class MyApp extends StatelessWidget {
         ),
         dividerColor: Colors.white.withOpacity(0.08),
       ),
-      home: isAuthenticated ? const DashboardScreen() : const LoginScreen(),
+      home: widget.isAuthenticated ? const DashboardScreen() : const LoginScreen(),
     );
   }
 }
@@ -148,19 +191,17 @@ class MyApp extends StatelessWidget {
 ///
 /// Collects email and password, delegates authentication to [AuthService],
 /// and navigates to [DashboardScreen] on success.
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  final _authService = AuthService(baseUrl: kBaseUrl);
 
   bool _isLoading = false;
   String? _serverError;
@@ -180,7 +221,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _serverError = null;
     });
 
-    final result = await _authService.login(
+    final notifier = ref.read(authProvider.notifier);
+    final result = await notifier.login(
       _emailController.text.trim(),
       _passwordController.text,
     );

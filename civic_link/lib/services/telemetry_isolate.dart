@@ -104,6 +104,12 @@ class UpdateToken extends TelemetryCommand {
   UpdateToken(this.newToken);
 }
 
+class IngestTelemetry extends TelemetryCommand {
+  final String tripId;
+  final List<Map<String, dynamic>> samples;
+  IngestTelemetry({required this.tripId, required this.samples});
+}
+
 sealed class TelemetryStatus {}
 
 class TelemetryStarted extends TelemetryStatus {}
@@ -139,6 +145,13 @@ class BatchRetryQueued extends TelemetryStatus {
 class BatchesDropped extends TelemetryStatus {
   final int droppedCount;
   BatchesDropped(this.droppedCount);
+}
+
+class ScoreIngested extends TelemetryStatus {
+  final double civicScore;
+  final double delta;
+  final String tier;
+  ScoreIngested(this.civicScore, this.delta, this.tier);
 }
 
 // =============================================================================
@@ -317,6 +330,46 @@ class _TelemetryWorker {
   }
 
   // -------------------------------------------------------------------------
+  // INGESTION TO BACKEND
+  // -------------------------------------------------------------------------
+  Future<void> ingestToBackend(
+    String tripId,
+    List<Map<String, dynamic>> samples,
+  ) async {
+    if (samples.isEmpty || authToken.isEmpty) return;
+
+    final payload = {
+      'trip_id': tripId,
+      'samples': samples,
+    };
+
+    try {
+      final response = await dio.post(
+        '/api/v1/civic-score/ingest',
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $authToken'}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map;
+        sendPort.send(ScoreIngested(
+          (data['civic_score'] as num).toDouble(),
+          (data['delta'] as num).toDouble(),
+          data['tier'] as String,
+        ));
+      }
+    } on DioException catch (e) {
+      sendPort.send(TelemetryError(
+        'Score ingestion failed: ${e.message}',
+      ));
+    } catch (e) {
+      sendPort.send(TelemetryError(
+        'Unexpected ingestion error: $e',
+      ));
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // FINAL FLUSH
   // -------------------------------------------------------------------------
   Future<void> finalFlush() async {
@@ -372,6 +425,8 @@ void _telemetryIsolateEntry(SendPort sendPort) {
       worker?.dispose();
       sendPort.send(TelemetryStopped());
       Isolate.current.kill();
+    } else if (message is IngestTelemetry) {
+      worker?.ingestToBackend(message.tripId, message.samples);
     }
   });
 }
@@ -487,6 +542,14 @@ class TelemetryService {
   void updateToken(String newToken) {
     _authToken = newToken;
     _commandPort?.send(UpdateToken(newToken));
+  }
+
+  Future<void> ingestScore({
+    required String tripId,
+    required List<Map<String, dynamic>> samples,
+  }) async {
+    if (_commandPort == null) return;
+    _commandPort!.send(IngestTelemetry(tripId: tripId, samples: samples));
   }
 
   bool get isRunning => _isolate != null;

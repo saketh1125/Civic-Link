@@ -187,6 +187,56 @@ class CivicScore(BaseModel):
         # Clamp to valid range
         return max(0.0, min(100.0, new_score))
 
+    def calculate_weighted_score(
+        self,
+        samples: list[dict],
+    ) -> float:
+        """Calculate new civic score using the weighted penalty model.
+
+        Score starts at 100, penalties are deducted based on raw IMU samples:
+        - Speed penalty: clamp(mean(speed_kmh) - 60, 0, 40) * 0.4
+        - Hard brake count: count(braking_ms2 > 4.0) * 2.0
+        - Acceleration penalty: count(acceleration_ms2 > 3.5) * 1.5
+        - Swerve penalty: mean(swerve_index > 0.3) * 10.0
+        - Phone penalty: count(phone_usage_detected=True) * 5.0
+
+        Args:
+            samples: List of telemetry sample dicts with keys:
+                speed_kmh, acceleration_ms2, braking_ms2,
+                swerve_index, phone_usage_detected
+
+        Returns:
+            New calculated score (0-100)
+        """
+        if not samples:
+            return self.score
+
+        base = 100.0
+
+        speeds = [s.get("speed_kmh", 0) for s in samples]
+        avg_speed = sum(speeds) / len(speeds) if speeds else 0
+        speed_penalty = max(0, min(avg_speed - 60, 40)) * 0.4
+
+        hard_brake_count = sum(1 for s in samples if s.get("braking_ms2", 0) > 4.0)
+        brake_penalty = hard_brake_count * 2.0
+
+        accel_count = sum(1 for s in samples if s.get("acceleration_ms2", 0) > 3.5)
+        accel_penalty = accel_count * 1.5
+
+        swerve_values = [s.get("swerve_index", 0) for s in samples]
+        swerve_ratio = sum(1 for v in swerve_values if v > 0.3) / len(swerve_values) if swerve_values else 0
+        swerve_penalty = swerve_ratio * 10.0
+
+        phone_count = sum(1 for s in samples if s.get("phone_usage_detected", False))
+        phone_penalty = phone_count * 5.0
+
+        new_score = base - speed_penalty - accel_penalty - brake_penalty - swerve_penalty - phone_penalty
+
+        # Blend with existing score for stability
+        blended = (self.score * 0.7) + (max(0.0, min(100.0, new_score)) * 0.3)
+
+        return max(0.0, min(100.0, blended))
+
     def update_from_telemetry(
         self,
         swerve_detected: bool = False,

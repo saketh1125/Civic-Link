@@ -15,6 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../../providers/civic_score_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../main.dart';
 
 // =============================================================================
 // DASHBOARD SCREEN
@@ -36,11 +38,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print("🚀 IGNITION SEQUENCE STARTED!");
+      final authState = ref.read(authProvider);
       ref.read(civicScoreProvider.notifier).startTelemetry(
-            baseUrl: 'http://YOUR_LOCAL_IP:8000',
-            userId: 'test-user',
-            authToken: 'test-token',
+            baseUrl: kBaseUrl,
+            userId: authState.userId ?? 'unknown',
+            authToken: authState.accessToken ?? '',
           );
     });
   }

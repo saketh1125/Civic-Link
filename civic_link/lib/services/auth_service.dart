@@ -103,6 +103,7 @@ class AuthService {
   // Secure storage keys
   static const String _tokenKey = 'civic_link_access_token';
   static const String _tokenExpiryKey = 'civic_link_token_expiry';
+  static const String _userIdKey = 'civic_link_user_id';
 
   /// Creates AuthService with configurable base URL.
   ///
@@ -142,13 +143,6 @@ class AuthService {
         'password': password,
       };
 
-      print("=== LOGIN DEBUG ===");
-      print("Raw Email Typed: '$rawEmail'");
-      print("Hash Generated: '${hashedEmail.emailHash}'");
-      print("Password Typed: '$password'");
-      print("Password Length: ${password.length}");
-      print("===================");
-
       // Transmit to backend
       final response = await _dio.post(
         '/api/v1/auth/login/access-token',
@@ -158,8 +152,15 @@ class AuthService {
       // Parse successful response
       final loginData = LoginResponse.fromJson(response.data);
 
-      // Securely store the token
+      // Extract userId from response if available
+      final userId = response.data['user_id'] as String? ??
+          response.data['id'] as String?;
+
+      // Securely store the token and userId
       await _storeToken(loginData.accessToken, loginData.expiresIn);
+      if (userId != null) {
+        await _secureStorage.write(key: _userIdKey, value: userId);
+      }
 
       return AuthResult.success(
         loginData,
@@ -211,6 +212,12 @@ class AuthService {
 
       final registerData = RegisterResponse.fromJson(response.data);
 
+      // Store userId from registration
+      await _secureStorage.write(
+        key: _userIdKey,
+        value: registerData.userId,
+      );
+
       return AuthResult.success(
         registerData,
         statusCode: response.statusCode,
@@ -254,6 +261,18 @@ class AuthService {
   Future<void> logout() async {
     await _secureStorage.delete(key: _tokenKey);
     await _secureStorage.delete(key: _tokenExpiryKey);
+    await _secureStorage.delete(key: _userIdKey);
+  }
+
+  /// Retrieves stored user ID.
+  ///
+  /// Returns null if no user is logged in.
+  Future<String?> getUserId() async {
+    try {
+      return await _secureStorage.read(key: _userIdKey);
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Stores token securely with expiration tracking.

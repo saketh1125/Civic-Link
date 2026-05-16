@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
     # GDPR/RTI Compliance
     anonymization_delay_hours: int = 24
+    audit_log_retention_days: int = 90
 
     # Whitelisted Email Domains for Registration
     whitelisted_domains: list[str] = [

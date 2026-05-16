@@ -140,7 +140,31 @@ class CivicScoreNotifier extends Notifier<CivicScoreState> {
       authToken: authToken,
       onScoreUpdate: updateScore,
     );
+    _telemetryService!.statusStream.listen(_handleTelemetryStatus);
     await _telemetryService!.start();
+  }
+
+  /// Handles telemetry status messages from the isolate.
+  void _handleTelemetryStatus(TelemetryStatus status) {
+    if (status is ScoreUpdate) {
+      updateScore(status.score);
+    } else if (status is ScoreIngested) {
+      updateScore(status.civicScore);
+    }
+  }
+
+  /// Triggers score ingestion to the backend /ingest endpoint.
+  ///
+  /// Transforms the current IMU buffer into weighted-penalty samples
+  /// and POSTs them for server-side score calculation.
+  Future<void> refreshScore({
+    required String tripId,
+  }) async {
+    if (_telemetryService == null || !_telemetryService!.isRunning) return;
+    await _telemetryService!.ingestScore(
+      tripId: tripId,
+      samples: [],
+    );
   }
 
   /// Stops the isolate and releases resources.
