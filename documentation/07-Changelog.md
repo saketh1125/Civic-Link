@@ -9,10 +9,82 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Flutter UI Shell integration
 - Real-time WebSocket updates
 - Production deployment pipeline
 - Load testing and performance optimization
+- Alembic migrations setup
+- Redis caching layer
+
+---
+
+## [0.2.0] - 2026-05-16
+
+### Telemetry Pipeline, Auth Wiring, Full Service Layer, and API Endpoints
+
+#### Added
+- **API Endpoints**
+  - `POST /api/v1/auth/register` — Zero-Liability registration with domain whitelist
+  - `POST /api/v1/auth/login/access-token` — JWT login with hashed email
+  - `GET /api/v1/auth/me` — Current user profile
+  - `POST /api/v1/commutes` — Create driver commute offer
+  - `GET /api/v1/commutes/my` — List driver's active commutes
+  - `GET /api/v1/commutes/{id}` — Commute details with driver info
+  - `POST /api/v1/commutes/{id}/cancel` — Cancel commute (driver only)
+  - `POST /api/v1/commutes/offers` — Create passenger ride request
+  - `POST /api/v1/matches/{commute_id}/request` — Request to join commute (enforces safety)
+  - `POST /api/v1/matches/{match_id}/confirm` — Confirm pending match
+  - `GET /api/v1/matches/my` — List user's active matches
+  - `GET /api/v1/matches/{match_id}` — Match details with names
+  - `POST /api/v1/matches/{match_id}/rate` — Rate completed match (1-5 stars)
+  - `POST /api/v1/civic-score/ingest` — Weighted penalty score ingestion
+  - `GET /api/v1/civic-score/me` — Current civic score
+  - `GET /api/v1/civic-score/history` — Score change history
+
+- **Backend Services** (previously empty stubs)
+  - `CommuteService` — CRUD for commutes and offers with PostGIS Geography
+  - `UserService` — Profile retrieval, updates, verification, admin promotion
+  - `CivicScoreService` — Score retrieval, weighted penalty ingestion, history tracking
+  - `AuditService` — AES-256-GCM encrypted audit logging, safety alerts
+
+- **Pydantic Schemas** (previously empty stubs)
+  - `schemas/user.py` — Register, login, profile update, token, user response schemas
+  - `schemas/commute.py` — Create commute/offer request, commute response schemas
+  - `schemas/match.py` — Confirm, rate request, match response schemas
+
+- **Scoring Model**
+  - Weighted penalty formula: speed, braking, acceleration, swerve, phone penalties
+  - 70/30 blend with existing score for stability
+  - Score tiers: excellent (≥90), good (≥75), fair (≥60), poor (≥40), critical (<40)
+
+- **Flutter Frontend**
+  - `AuthNotifier` with Riverpod — login, logout, session restore
+  - `AuthService` — userId persistence via `FlutterSecureStorage`
+  - `DashboardScreen` — wired to real authProvider state (no more hardcoded credentials)
+  - `TelemetryService.ingestScore()` — POST to `/civic-score/ingest` from isolate
+  - `ScoreIngested` status message — backend score flows back to dashboard
+
+- **Testing**
+  - `tests/conftest.py` — pytest fixtures: db_session, async_client, test user data
+  - `TestWeightedPenaltyScoring` — 10 tests covering perfect driving, penalties, blending, clamping
+
+- **Configuration**
+  - `audit_log_retention_days` added to Settings (default: 90)
+
+- **Project**
+  - `AGENTS.md` — opencode agent instructions for this repository
+
+#### Changed
+- `app/api/v1/api.py` — wired commutes, matches, civic-score routers
+- `civic_link/lib/main.dart` — session restore flow, authProvider integration
+- `civic_link/lib/services/auth_service.dart` — added `getUserId()`, userId storage
+- `civic_link/lib/providers/civic_score_provider.dart` — telemetry status listener, `refreshScore()`
+- `civic_link/lib/services/telemetry_isolate.dart` — `IngestTelemetry` command, `ingestToBackend()` method
+- `app/models/civic_score.py` — added `calculate_weighted_score()` method
+- `tests/test_safety_logic.py` — added weighted penalty test suite
+
+#### Fixed
+- Removed debug `print()` statements from `auth_service.dart` login flow
+- Replaced hardcoded `baseUrl`, `userId`, `authToken` in `DashboardScreen` with real auth state
 
 ---
 

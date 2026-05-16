@@ -9,15 +9,15 @@ Production:  https://api.civic-link.example.com
 
 ## Authentication
 
-All endpoints require JWT authentication via Bearer token in the Authorization header:
+All protected endpoints require JWT authentication via Bearer token:
 
 ```
 Authorization: Bearer <jwt_token>
 ```
 
-**Token Generation:** (Not yet implemented - see Future Work)
-- Endpoint: `POST /api/v1/auth/login`
-- Payload: `{ "email": "user@company.com", "password": "..." }`
+**Token Generation:**
+- `POST /api/v1/auth/login/access-token` — Zero-Liability login (email hashed client-side)
+- `POST /api/v1/auth/register` — Registration with domain whitelist
 
 ---
 
@@ -31,144 +31,153 @@ All endpoints are prefixed with `/api/v1`
 
 ## Endpoints
 
-### 1. Telemetry
+### 1. Authentication
 
-#### POST /api/v1/telemetry
+#### POST /api/v1/auth/register
 
-Submit 50Hz IMU (Inertial Measurement Unit) data for civic scoring.
+Register a new user with Zero-Liability privacy. Email is hashed client-side.
 
 **Request Body:**
 ```json
 {
-  "user_id": "uuid-of-driver",
-  "match_id": "uuid-of-active-match",
+  "email_hash": "sha256-hash-of-email",
+  "email_domain": "cmrcet.ac.in",
+  "password": "SecurePass123!",
+  "full_name": "John Doe",
+  "phone_number": "+91-98765-43210",
+  "gender": "male",
+  "company_name": "TechCorp India",
+  "employee_id": "EMP12345"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "uuid-user-id",
+  "email_domain": "cmrcet.ac.in",
+  "full_name": "John Doe",
+  "gender": "male",
+  "company_name": "TechCorp India",
+  "role": "commuter",
+  "is_verified": true
+}
+```
+
+**Whitelisted Domains:** `cmrcet.ac.in`, `company.com`, `govt.in`, `hyderabadpolice.gov.in`
+
+---
+
+#### POST /api/v1/auth/login/access-token
+
+Zero-Liability login. Only email_hash + domain transmitted.
+
+**Request Body:**
+```json
+{
+  "email_hash": "sha256-hash-of-email",
+  "email_domain": "cmrcet.ac.in",
+  "password": "SecurePass123!"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+---
+
+#### GET /api/v1/auth/me
+
+Get current authenticated user profile.
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid-user-id",
+  "email_domain": "cmrcet.ac.in",
+  "full_name": "John Doe",
+  "gender": "male",
+  "company_name": "TechCorp India",
+  "role": "commuter",
+  "is_verified": true
+}
+```
+
+---
+
+### 2. Telemetry
+
+#### POST /api/v1/telemetry/telemetry
+
+Submit 50Hz IMU batch for background processing. Returns 202 immediately.
+
+**Request Body:**
+```json
+{
+  "user_id": "uuid-driver-id",
+  "match_id": "uuid-match-id",
   "readings": [
     {
-      "timestamp": "2026-04-15T10:30:00.000Z",
-      "gyro_z": 0.5236,
-      "accel_x": 0.5,
+      "timestamp_ms": 1704067200000,
+      "gyro_x": 0.05,
+      "gyro_y": 0.02,
+      "gyro_z": 2.1,
+      "accel_x": 0.1,
       "accel_y": -0.2,
-      "speed_mps": 15.5
+      "accel_z": 9.8
     }
   ]
 }
 ```
 
-**Field Descriptions:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| user_id | string (UUID) | Yes | Driver submitting telemetry |
-| match_id | string (UUID) | No | Associated active trip |
-| readings | array | Yes | Array of IMU readings (max 50/sec) |
-| readings[].timestamp | ISO 8601 | Yes | Reading timestamp |
-| readings[].gyro_z | float | Yes | Z-axis rotation rate (rad/s) |
-| readings[].accel_x | float | Yes | X-axis acceleration |
-| readings[].accel_y | float | Yes | Y-axis acceleration |
-| readings[].speed_mps | float | No | GPS speed (meters/second) |
-
 **Response (202 Accepted):**
 ```json
 {
-  "status": "accepted",
-  "batch_id": "uuid-batch-identifier",
-  "readings_count": 50,
-  "message": "Telemetry accepted for background processing"
+  "user_id": "uuid-driver-id",
+  "processed_readings": 50,
+  "swerve_events_detected": 0,
+  "swerve_events": [],
+  "old_civic_score": 0.0,
+  "new_civic_score": 0.0,
+  "message": "Telemetry batch accepted for processing"
 }
 ```
 
 **Processing:**
-- Returns immediately (zero-lag for mobile clients)
 - Background task processes IMU data asynchronously
 - Swerve detection: `abs(gyro_z) > 1.5 rad/s`
 - 60-second cooldown between swerve events
 - Civic score updated via weighted rolling average
 
-**Error Responses:**
-- `400 Bad Request`: Invalid IMU data format
-- `404 Not Found`: User or match not found
-- `422 Validation Error`: Missing required fields
-
 ---
 
-### 2. Commutes
-
-#### GET /api/v1/commutes
-
-List available commute offers with optional filtering.
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| origin_lat | float | No | Origin latitude |
-| origin_lon | float | No | Origin longitude |
-| dest_lat | float | No | Destination latitude |
-| dest_lon | float | No | Destination longitude |
-| date | date | No | Departure date (YYYY-MM-DD) |
-| radius | int | No | Search radius in meters (default: 500) |
-| women_only | boolean | No | Filter for women-only commutes |
-
-**Response (200 OK):**
-```json
-{
-  "commutes": [
-    {
-      "id": "uuid-commute-id",
-      "driver": {
-        "id": "uuid-driver-id",
-        "gender": "female",
-        "civic_score": 95.5
-      },
-      "origin": {
-        "lat": 17.4930,
-        "lon": 78.4020,
-        "address": "KPHB Phase 3, Hyderabad"
-      },
-      "destination": {
-        "lat": 17.4430,
-        "lon": 78.3770,
-        "address": "Mindspace, HITEC City"
-      },
-      "departure": {
-        "date": "2026-04-16",
-        "time": "09:00:00"
-      },
-      "seats_available": 2,
-      "is_women_only": false,
-      "status": "active"
-    }
-  ],
-  "total": 15,
-  "radius_meters": 500
-}
-```
-
----
+### 3. Commutes
 
 #### POST /api/v1/commutes
 
-Create a new commute offer (driver offering a ride).
+Create a new commute offer (driver).
 
 **Request Body:**
 ```json
 {
-  "driver_id": "uuid-driver-id",
-  "origin": {
-    "lat": 17.4930,
-    "lon": 78.4020,
-    "address": "KPHB Phase 3, Block A"
-  },
-  "destination": {
-    "lat": 17.4430,
-    "lon": 78.3770,
-    "address": "Mindspace, Building 2"
-  },
+  "origin_lat": 17.4930,
+  "origin_lon": 78.4020,
+  "destination_lat": 17.4430,
+  "destination_lon": 78.3770,
+  "origin_address": "KPHB Phase 3, Hyderabad",
+  "destination_address": "Mindspace, HITEC City",
   "departure_date": "2026-04-16",
   "departure_time": "09:00:00",
-  "seats_offered": 3,
+  "available_seats": 2,
+  "total_seats": 4,
   "is_women_only": false,
-  "max_walking_distance": 500
+  "commute_type": "one_time"
 }
 ```
 
@@ -176,38 +185,98 @@ Create a new commute offer (driver offering a ride).
 ```json
 {
   "id": "uuid-commute-id",
-  "status": "active",
-  "expires_at": "2026-04-16T08:45:00Z",
-  "message": "Commute offer created successfully"
+  "driver_id": "uuid-driver-id",
+  "origin_address": "KPHB Phase 3, Hyderabad",
+  "destination_address": "Mindspace, HITEC City",
+  "departure_date": "2026-04-16",
+  "departure_time": "09:00:00",
+  "available_seats": 2,
+  "total_seats": 4,
+  "is_women_only": false,
+  "commute_type": "one_time",
+  "status": "active"
 }
 ```
 
 ---
 
-### 3. Commute Offers
+#### GET /api/v1/commutes/my
 
-#### POST /api/v1/commute-offers
+Get all active commutes for the authenticated driver.
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "uuid-commute-id",
+    "driver_id": "uuid-driver-id",
+    "origin_address": "KPHB Phase 3",
+    "destination_address": "Mindspace",
+    "departure_date": "2026-04-16",
+    "departure_time": "09:00:00",
+    "available_seats": 2,
+    "total_seats": 4,
+    "is_women_only": false,
+    "commute_type": "one_time",
+    "status": "active"
+  }
+]
+```
+
+---
+
+#### GET /api/v1/commutes/{commute_id}
+
+Get commute details with driver info.
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid-commute-id",
+  "driver_id": "uuid-driver-id",
+  "origin_address": "KPHB Phase 3",
+  "destination_address": "Mindspace",
+  "departure_date": "2026-04-16",
+  "departure_time": "09:00:00",
+  "available_seats": 2,
+  "total_seats": 4,
+  "is_women_only": false,
+  "commute_type": "one_time",
+  "status": "active",
+  "driver_name": "John Doe",
+  "driver_gender": "male",
+  "driver_score": 95.5
+}
+```
+
+---
+
+#### POST /api/v1/commutes/{commute_id}/cancel
+
+Cancel an active commute (driver only).
+
+**Response (200 OK):** Updated commute with `status: "cancelled"`
+
+---
+
+#### POST /api/v1/commutes/offers
 
 Create a commute offer (passenger requesting a ride).
 
 **Request Body:**
 ```json
 {
-  "passenger_id": "uuid-passenger-id",
-  "origin": {
-    "lat": 17.4930,
-    "lon": 78.4020,
-    "address": "KPHB Phase 3, Block B"
-  },
-  "destination": {
-    "lat": 17.4430,
-    "lon": 78.3770,
-    "address": "Mindspace, Building 3"
-  },
+  "origin_lat": 17.4930,
+  "origin_lon": 78.4020,
+  "destination_lat": 17.4430,
+  "destination_lon": 78.3770,
+  "origin_address": "KPHB Phase 3, Block B",
+  "destination_address": "Mindspace, Building 3",
   "preferred_departure_date": "2026-04-16",
   "preferred_departure_time": "09:00:00",
   "is_women_only": true,
-  "max_walking_distance": 500
+  "max_walking_distance": 500,
+  "time_flexibility_minutes": 15
 }
 ```
 
@@ -215,168 +284,210 @@ Create a commute offer (passenger requesting a ride).
 ```json
 {
   "id": "uuid-offer-id",
-  "status": "pending",
-  "message": "Commute offer created. Searching for matches..."
+  "passenger_id": "uuid-passenger-id",
+  "origin_address": "KPHB Phase 3, Block B",
+  "destination_address": "Mindspace, Building 3",
+  "preferred_departure_date": "2026-04-16",
+  "preferred_departure_time": "09:00:00",
+  "is_women_only": true,
+  "max_walking_distance": 500,
+  "status": "pending"
 }
 ```
-
----
-
-#### GET /api/v1/commute-offers/{offer_id}/matches
-
-Find matching commutes for a passenger offer.
-
-**Path Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| offer_id | string (UUID) | The commute offer ID |
-
-**Query Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| radius_meters | int | 500 | Search radius in meters |
-
-**Response (200 OK):**
-```json
-{
-  "offer_id": "uuid-offer-id",
-  "matches": [
-    {
-      "commute_id": "uuid-commute-id",
-      "driver": {
-        "id": "uuid-driver-id",
-        "email": "driver@company.com",
-        "gender": "female",
-        "civic_score": 98.5
-      },
-      "origin_distance_m": 245,
-      "destination_distance_m": 180,
-      "departure_time_diff_min": 5,
-      "seats_available": 2
-    }
-  ],
-  "total_matches": 3,
-  "search_radius_m": 500
-}
-```
-
-**Safety Guarantee:**
-- If `is_women_only=true` in the offer, only female drivers are returned
-- Enforced at database level via hard-reject SQL clause
-- Zero male drivers will ever appear in results
 
 ---
 
 ### 4. Matches
 
-#### POST /api/v1/matches
+#### POST /api/v1/matches/{commute_id}/request
 
-Create a match between a commute and a commute offer.
-
-**Request Body:**
-```json
-{
-  "commute_id": "uuid-commute-id",
-  "commute_offer_id": "uuid-offer-id",
-  "passenger_id": "uuid-passenger-id",
-  "driver_id": "uuid-driver-id"
-}
-```
+Request to join a commute as a passenger. Enforces hard-reject safety logic.
 
 **Response (201 Created):**
 ```json
 {
-  "match_id": "uuid-match-id",
-  "status": "confirmed",
-  "safety_snapshot": {
-    "commute_was_women_only": false,
-    "offer_was_women_only": true,
-    "driver_gender": "female"
-  },
-  "message": "Match created successfully"
+  "id": "uuid-match-id",
+  "commute_id": "uuid-commute-id",
+  "driver_id": "uuid-driver-id",
+  "passenger_id": "uuid-passenger-id",
+  "status": "pending",
+  "pickup_radius_meters": 245,
+  "fare_amount": null,
+  "payment_status": "pending",
+  "commute_was_women_only": false,
+  "offer_was_women_only": true,
+  "confirmed_at": null,
+  "started_at": null,
+  "completed_at": null
 }
 ```
 
 **Error Responses:**
-- `409 Conflict`: Safety violation (e.g., male driver for women-only request)
-- `400 Bad Request`: No seats available
-- `404 Not Found`: Commute or offer not found
+- `403 Forbidden`: Safety violation (gender mismatch on women-only commute)
+- `400 Bad Request`: No seats available or commute not found
+
+---
+
+#### POST /api/v1/matches/{match_id}/confirm
+
+Confirm a pending match (driver action).
+
+**Response (200 OK):** Match with `status: "confirmed"`
+
+---
+
+#### GET /api/v1/matches/my
+
+Get all active matches for the authenticated user (as driver or passenger).
+
+**Response (200 OK):**
+```json
+{
+  "items": [
+    {
+      "id": "uuid-match-id",
+      "commute_id": "uuid-commute-id",
+      "driver_id": "uuid-driver-id",
+      "passenger_id": "uuid-passenger-id",
+      "status": "pending",
+      "pickup_radius_meters": 245,
+      "payment_status": "pending",
+      "commute_was_women_only": false,
+      "offer_was_women_only": true
+    }
+  ],
+  "total": 1
+}
+```
 
 ---
 
 #### GET /api/v1/matches/{match_id}
 
-Get details of a specific match.
+Get match details with driver and passenger names.
 
 **Response (200 OK):**
 ```json
 {
   "id": "uuid-match-id",
-  "commute": {
-    "id": "uuid-commute-id",
-    "origin": "KPHB Phase 3",
-    "destination": "Mindspace"
-  },
-  "passenger": {
-    "id": "uuid-passenger-id",
-    "email": "passenger@company.com"
-  },
-  "driver": {
-    "id": "uuid-driver-id",
-    "email": "driver@company.com",
-    "civic_score": 95.5
-  },
-  "status": "confirmed",
-  "match_time": "2026-04-15T08:30:00Z"
+  "commute_id": "uuid-commute-id",
+  "driver_id": "uuid-driver-id",
+  "passenger_id": "uuid-passenger-id",
+  "status": "pending",
+  "pickup_radius_meters": 245,
+  "driver_name": "John Doe",
+  "passenger_name": "Jane Smith",
+  "origin_address": "KPHB Phase 3",
+  "destination_address": "Mindspace"
 }
 ```
 
 ---
 
-#### PATCH /api/v1/matches/{match_id}
+#### POST /api/v1/matches/{match_id}/rate
 
-Update match status (confirm, complete, cancel).
+Rate a completed match (1-5 stars with optional review).
 
 **Request Body:**
 ```json
 {
-  "status": "completed",
-  "reason": "Trip finished successfully"
+  "driver_rating": 5,
+  "driver_review": "Excellent driver, safe and punctual",
+  "passenger_rating": 4,
+  "passenger_review": "Good passenger"
 }
 ```
 
-**Status Values:**
-- `pending`: Initial state
-- `confirmed`: Passenger accepted the match
-- `completed`: Trip finished
-- `cancelled`: Trip cancelled by either party
+**Response (200 OK):** Updated match with ratings.
 
 ---
 
 ### 5. Civic Score
 
-#### GET /api/v1/civic-score/{user_id}
+#### POST /api/v1/civic-score/ingest
 
-Get a user's civic score and history.
+Ingest raw telemetry samples and recalculate civic score using weighted penalty model.
+
+**Request Body:**
+```json
+{
+  "trip_id": "uuid-trip-id",
+  "samples": [
+    {
+      "timestamp": "2026-05-16T10:30:00Z",
+      "speed_kmh": 65.0,
+      "acceleration_ms2": 2.1,
+      "braking_ms2": 0.5,
+      "swerve_index": 0.15,
+      "phone_usage_detected": false
+    }
+  ]
+}
+```
+
+**Scoring Formula:**
+```
+base = 100.0
+speed_penalty  = clamp(mean(speed_kmh) - 60, 0, 40) * 0.4
+brake_penalty  = count(braking_ms2 > 4.0) * 2.0
+accel_penalty  = count(acceleration_ms2 > 3.5) * 1.5
+swerve_penalty = ratio(swerve_index > 0.3) * 10.0
+phone_penalty  = count(phone_usage_detected=True) * 5.0
+
+raw_score = base - speed - brake - accel - swerve - phone
+final_score = (existing_score * 0.7) + (clamp(raw_score, 0, 100) * 0.3)
+```
 
 **Response (200 OK):**
 ```json
 {
-  "user_id": "uuid-user-id",
-  "current_score": 92.5,
-  "score_history": [
-    {
-      "score": 92.5,
-      "swerve_events_24h": 1,
-      "speeding_events_24h": 0,
-      "calculated_at": "2026-04-15T00:00:00Z"
-    }
-  ],
-  "ranking": {
-    "percentile": 85,
-    "total_drivers": 150
-  }
+  "civic_score": 92.5,
+  "delta": -2.3,
+  "tier": "excellent"
 }
+```
+
+**Score Tiers:** `excellent` (≥90), `good` (≥75), `fair` (≥60), `poor` (≥40), `critical` (<40)
+
+---
+
+#### GET /api/v1/civic-score/me
+
+Get current user's civic score.
+
+**Response (200 OK):**
+```json
+{
+  "score": 92.5,
+  "score_tier": "excellent",
+  "total_trips": 45,
+  "swerve_count": 3,
+  "speeding_count": 1,
+  "hard_braking_count": 2
+}
+```
+
+---
+
+#### GET /api/v1/civic-score/history
+
+Get score change history.
+
+**Query Parameters:** `limit` (default: 50)
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "uuid-history-id",
+    "old_score": 95.0,
+    "new_score": 92.5,
+    "trigger_event": "sample_ingestion",
+    "swerve_count": 3,
+    "speeding_count": 1,
+    "created_at": "2026-05-16T10:30:00"
+  }
+]
 ```
 
 ---
@@ -385,14 +496,14 @@ Get a user's civic score and history.
 
 #### GET /health
 
-Check API and database health.
+Check API health.
 
 **Response (200 OK):**
 ```json
 {
   "status": "healthy",
-  "database": "connected",
-  "timestamp": "2026-04-15T10:30:00Z"
+  "service": "Civic-Link DPI",
+  "version": "0.1.0"
 }
 ```
 
@@ -404,66 +515,21 @@ All errors follow this format:
 
 ```json
 {
-  "detail": {
-    "message": "Error description",
-    "code": "ERROR_CODE",
-    "field": "field_name (if applicable)"
-  }
+  "detail": "Error description"
 }
 ```
 
-**Common Error Codes:**
+**Common HTTP Status Codes:**
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| VALIDATION_ERROR | 422 | Invalid input data |
-| NOT_FOUND | 404 | Resource not found |
-| SAFETY_VIOLATION | 409 | Hard-reject safety rule violated |
-| UNAUTHORIZED | 401 | Authentication required |
-| FORBIDDEN | 403 | Permission denied |
-| CONFLICT | 409 | Resource conflict |
-
----
-
-## Rate Limiting
-
-**Not yet implemented** (see Future Work)
-
-Planned limits:
-- Telemetry: 100 requests/minute per user
-- Matching: 20 requests/minute per user
-- General: 1000 requests/hour per user
-
----
-
-## Pagination
-
-**Not yet implemented** (see Future Work)
-
-For list endpoints, planned parameters:
-- `page`: Page number (default: 1)
-- `limit`: Items per page (default: 20, max: 100)
-
-Response will include:
-```json
-{
-  "data": [...],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 150,
-    "pages": 8
-  }
-}
-```
-
----
-
-## WebSocket (Future)
-
-Real-time updates planned:
-- `ws://localhost:8000/ws/matches/{user_id}`
-- Events: `match_found`, `match_confirmed`, `match_cancelled`
+| Status | Description |
+|--------|-------------|
+| 400 | Invalid input data |
+| 401 | Authentication required or invalid credentials |
+| 403 | Permission denied or safety violation |
+| 404 | Resource not found |
+| 409 | Safety rule violated (gender mismatch) |
+| 422 | Pydantic validation error |
+| 500 | Internal server error |
 
 ---
 
@@ -475,35 +541,71 @@ Real-time updates planned:
 # Health check
 curl http://localhost:8000/health
 
-# Create telemetry batch
-curl -X POST http://localhost:8000/api/v1/telemetry \
+# Register a user
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "user_id": "test-user-id",
+    "email_hash": "'$(echo -n "user@cmrcet.ac.in" | sha256sum | cut -d" " -f1)'",
+    "email_domain": "cmrcet.ac.in",
+    "password": "SecurePass123!",
+    "full_name": "Test User",
+    "phone_number": "+91-99999-00001",
+    "gender": "male",
+    "company_name": "Test Corp"
+  }'
+
+# Login and get token
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login/access-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email_hash": "'$(echo -n "user@cmrcet.ac.in" | sha256sum | cut -d" " -f1)'",
+    "email_domain": "cmrcet.ac.in",
+    "password": "SecurePass123!"
+  }' | jq -r '.access_token')
+
+# Submit telemetry batch
+curl -X POST http://localhost:8000/api/v1/telemetry/telemetry \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "your-user-id",
     "readings": [
       {
-        "timestamp": "2026-04-15T10:30:00Z",
+        "timestamp_ms": 1704067200000,
         "gyro_z": 0.5,
+        "gyro_x": 0.1,
+        "gyro_y": 0.2,
         "accel_x": 0.1,
-        "accel_y": 0.2
+        "accel_y": 0.2,
+        "accel_z": 9.8
       }
     ]
   }'
 
-# List commutes
-curl "http://localhost:8000/api/v1/commutes?origin_lat=17.4930&origin_lon=78.4020&date=2026-04-16"
+# Ingest telemetry samples for scoring
+curl -X POST http://localhost:8000/api/v1/civic-score/ingest \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trip_id": "trip-uuid",
+    "samples": [
+      {
+        "timestamp": "2026-05-16T10:30:00Z",
+        "speed_kmh": 65.0,
+        "acceleration_ms2": 2.1,
+        "braking_ms2": 0.5,
+        "swerve_index": 0.15,
+        "phone_usage_detected": false
+      }
+    ]
+  }'
+
+# Get civic score
+curl http://localhost:8000/api/v1/civic-score/me \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
-## SDKs (Future)
-
-Planned official SDKs:
-- **Flutter/Dart:** For mobile app
-- **Python:** For backend integrations
-- **JavaScript/TypeScript:** For web dashboards
-
----
-
-*Document Version: 1.0*  
-*Last Updated: April 15, 2026*
+*Document Version: 2.0*  
+*Last Updated: May 16, 2026*
