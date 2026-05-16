@@ -37,12 +37,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authState = ref.read(authProvider);
+
+      if (authState.accessToken == null || authState.accessToken!.isEmpty) {
+        if (!mounted) return;
+        ref.read(authProvider.notifier).logout();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+
+      final valid = await ref.read(authProvider.notifier).checkSessionValidity();
+      if (!valid) {
+        if (!mounted) return;
+        ref.read(authProvider.notifier).logout();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+
       ref.read(civicScoreProvider.notifier).startTelemetry(
             baseUrl: kBaseUrl,
             userId: authState.userId ?? 'unknown',
-            authToken: authState.accessToken ?? '',
+            authToken: authState.accessToken!,
           );
     });
   }

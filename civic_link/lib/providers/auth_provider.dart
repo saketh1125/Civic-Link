@@ -51,7 +51,12 @@ class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
     _authService = ref.watch(authServiceProvider);
+    AuthService.onUnauthorized = _handleUnauthorized;
     return AuthState.unauthenticated();
+  }
+
+  void _handleUnauthorized() {
+    state = AuthState.unauthenticated();
   }
 
   Future<AuthResult<LoginResponse>> login(String email, String password) async {
@@ -96,6 +101,11 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> restoreSession() async {
+    final valid = await _authService.checkSessionValidity();
+    if (!valid) {
+      state = AuthState.unauthenticated();
+      return;
+    }
     final token = await _authService.getAccessToken();
     final userId = await _authService.getUserId();
     if (token != null && userId != null) {
@@ -105,6 +115,10 @@ class AuthNotifier extends Notifier<AuthState> {
         isAuthenticated: true,
       );
     }
+  }
+
+  Future<bool> checkSessionValidity() async {
+    return _authService.checkSessionValidity();
   }
 
   Future<void> logout() async {

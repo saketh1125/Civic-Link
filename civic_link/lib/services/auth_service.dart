@@ -15,6 +15,8 @@
 /// }
 /// ```
 
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../utils/privacy_crypto.dart';
@@ -100,15 +102,12 @@ class AuthService {
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
 
-  // Secure storage keys
+  static void Function()? onUnauthorized;
+
   static const String _tokenKey = 'civic_link_access_token';
   static const String _tokenExpiryKey = 'civic_link_token_expiry';
   static const String _userIdKey = 'civic_link_user_id';
 
-  /// Creates AuthService with configurable base URL.
-  ///
-  /// [baseUrl] - Backend API base URL (e.g., 'http://localhost:8000')
-  /// [storage] - Optional custom secure storage instance
   AuthService({
     required String baseUrl,
     FlutterSecureStorage? storage,
@@ -118,7 +117,21 @@ class AuthService {
           receiveTimeout: const Duration(seconds: 10),
           headers: {'Content-Type': 'application/json'},
         )),
-        _secureStorage = storage ?? const FlutterSecureStorage();
+        _secureStorage = storage ?? const FlutterSecureStorage() {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (error, handler) async {
+          if (error.response?.statusCode == 401) {
+            await _secureStorage.delete(key: _tokenKey);
+            await _secureStorage.delete(key: _tokenExpiryKey);
+            await _secureStorage.delete(key: _userIdKey);
+            onUnauthorized?.call();
+          }
+          handler.next(error);
+        },
+      ),
+    );
+  }
 
   /// Authenticates user with Zero-Liability email hashing.
   ///
@@ -284,6 +297,46 @@ class AuthService {
       key: _tokenExpiryKey,
       value: expiry.toIso8601String(),
     );
+  }
+
+  /// Checks if the stored JWT token is still valid by decoding its expiry
+  /// claim locally — no network call required.
+  ///
+  /// Returns true if the token exists and has not expired.
+  Future<bool> checkSessionValidity() async {
+    try {
+      final token = await _secureStorage.read(key: _tokenKey);
+      if (token == null || token.isEmpty) return false;
+
+      final expiryStr = await _secureStorage.read(key: _tokenExpiryKey);
+      if (expiryStr != null) {
+        final expiry = DateTime.tryParse(expiryStr);
+        if (expiry != null && DateTime.now().isAfter(expiry)) {
+          await logout();
+          return false;
+        }
+      }
+
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+
+      final payload = jsonDecode(
+        utf8.decode(base64Url.normalize(parts[1]).codeUnits),
+      ) as Map;
+
+      final exp = payload['exp'] as int?;
+      if (exp != null) {
+        final expiryDate = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+        if (DateTime.now().isAfter(expiryDate)) {
+          await logout();
+          return false;
+        }
+      }
+
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /// Converts DioException to user-friendly error message.

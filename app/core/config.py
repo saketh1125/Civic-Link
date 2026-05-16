@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Application
     debug: bool = True
     environment: str = "development"
-    secret_key: str = "change-me-in-production"
+    secret_key: str
     api_v1_prefix: str = "/api/v1"
     project_name: str = "Civic-Link DPI"
 
@@ -30,9 +30,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     redis_password: Optional[str] = None
 
-    # Security
-    audit_log_encryption_key: Optional[str] = None
-    jwt_secret_key: str = "your-super-secret-jwt-key-change-in-production"
+    # Security — no defaults; must be provided via environment
+    audit_log_encryption_key: str
+    jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 7

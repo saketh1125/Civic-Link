@@ -5,7 +5,6 @@ Encrypted audit logging for commute matches and safety events.
 
 import base64
 import json
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -33,14 +32,20 @@ class AuditService:
         self._encryption_key = self._get_encryption_key()
 
     def _get_encryption_key(self) -> bytes:
-        """Get or generate the audit log encryption key.
+        """Get the audit log encryption key from environment.
 
         Returns:
             32-byte key for AES-256-GCM
+
+        Raises:
+            AuditLogError: If key is not configured
         """
         key_hex = settings.audit_log_encryption_key
-        if key_hex == "change-me-in-production":
-            return os.urandom(32)
+        if not key_hex:
+            raise AuditLogError(
+                "AUDIT_LOG_ENCRYPTION_KEY is not configured. "
+                "Set it in your environment before starting the application."
+            )
         return bytes.fromhex(key_hex)
 
     def _encrypt_payload(self, data: dict) -> tuple[str, str]:

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, get_current_user_unverified
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
@@ -204,7 +204,7 @@ async def register(
         company_name=request.company_name,
         employee_id=request.employee_id,
         password_hash=password_hash,
-        verification_status=VerificationStatus.VERIFIED,
+        verification_status=VerificationStatus.PENDING,
         role=UserRole.COMMUTER,
     )
     
@@ -280,6 +280,74 @@ async def login_access_token(
         access_token=access_token,
         token_type="bearer",
         expires_in=settings.access_token_expire_minutes * 60,
+    )
+
+
+class VerifyAccountRequest(BaseModel):
+    """Request model for account verification (placeholder)."""
+
+    token: str = Field(
+        ...,
+        description="Verification token (currently: user ID as placeholder)",
+    )
+
+
+class VerifyAccountResponse(BaseModel):
+    """Response model for successful verification."""
+
+    id: str
+    is_verified: bool
+    message: str
+
+    class Config:
+        from_attributes = True
+
+
+@router.post(
+    "/verify",
+    response_model=VerifyAccountResponse,
+    summary="Verify user account",
+    description="""
+    Verify a user account using a verification token.
+
+    NOTE: This is a placeholder implementation. In production, this should
+    accept an email verification token sent via a real email service.
+    Currently accepts the user's own ID as the token for development.
+    """,
+)
+async def verify_account(
+    request: VerifyAccountRequest,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_unverified),
+) -> VerifyAccountResponse:
+    """Verify user account.
+
+    Placeholder: accepts user ID as token. Real email flow is a later task.
+
+    Args:
+        request: Verification token
+        session: Database session
+        current_user: Authenticated user (verified or not)
+
+    Returns:
+        Verification confirmation
+
+    Raises:
+        HTTPException: 400 if token is invalid
+    """
+    if request.token != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification token",
+        )
+
+    current_user.verification_status = VerificationStatus.VERIFIED
+    await session.commit()
+
+    return VerifyAccountResponse(
+        id=str(current_user.id),
+        is_verified=True,
+        message="Account verified successfully",
     )
 
 
