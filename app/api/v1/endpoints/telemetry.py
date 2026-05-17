@@ -6,6 +6,7 @@ Uses FastAPI BackgroundTasks for zero-lag response.
 
 from typing import List, Optional
 
+import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.core.exceptions import CivicLinkException
 from app.models.user import User
 from app.services.telemetry_service import IMUReading, TelemetryService
 
+logger = structlog.get_logger()
 router = APIRouter()
 
 
@@ -223,6 +225,4 @@ async def _process_telemetry_background(
         # TODO: Trigger audit log for swerve events
 
     except Exception as e:
-        # Log error but don't fail - background tasks shouldn't crash
-        # In production, this should emit to Sentry/DataDog
-        print(f"Background telemetry processing failed: {e}")
+        logger.error("Background telemetry processing failed", error=str(e))

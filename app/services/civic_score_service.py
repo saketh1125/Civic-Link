@@ -6,11 +6,16 @@ Civic score retrieval, calculation, and history tracking.
 from datetime import datetime
 from typing import List, Optional
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.audit import AuditEventType, AuditEventSeverity
 from app.models.civic_score import CivicScore, CivicScoreHistory
+from app.services.audit_service import AuditService
+
+logger = structlog.get_logger()
 
 
 class CivicScoreService:
@@ -59,6 +64,15 @@ class CivicScoreService:
         score = await self.get_score_for_user(user_id)
         if score is None:
             score = await self.create_score_for_user(user_id)
+            try:
+                audit = AuditService(self.session)
+                await audit.log_match_event(
+                    driver_id=user_id,
+                    event_type=AuditEventType.SCORE_INITIALIZED,
+                    severity=AuditEventSeverity.INFO,
+                )
+            except Exception as audit_err:
+                logger.error("Audit logging failed for score initialization", error=str(audit_err))
         return score
 
     async def update_score_from_telemetry(
@@ -141,6 +155,16 @@ class CivicScoreService:
             match_id=trip_id,
         )
 
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                driver_id=user_id,
+                event_type=AuditEventType.SCORE_UPDATED,
+                severity=AuditEventSeverity.INFO,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for score update", error=str(audit_err))
+
         return score, delta
 
     async def record_trip_completion(
@@ -174,6 +198,16 @@ class CivicScoreService:
             swerve_count=score.swerve_count,
             speeding_count=score.speeding_count,
         )
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                driver_id=user_id,
+                event_type=AuditEventType.TRIP_COMPLETED,
+                severity=AuditEventSeverity.INFO,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for trip completion", error=str(audit_err))
 
         return score
 

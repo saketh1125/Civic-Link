@@ -46,8 +46,13 @@ class CivicScore(BaseModel):
 
     __tablename__ = "civic_scores"
 
-    def __init__(self, **kwargs):
-        """Set Python-level defaults for direct instantiation (tests)."""
+    def __init__(self, **kwargs) -> None:
+        """Initialize with Python-level defaults matching SQLAlchemy defaults.
+
+        SQLAlchemy's default= in mapped_column() only fires at INSERT time.
+        This __init__ ensures defaults are available for direct instantiation
+        (e.g., in tests that create objects without a DB session).
+        """
         kwargs.setdefault("score", 100.0)
         kwargs.setdefault("total_trips", 0)
         kwargs.setdefault("total_distance_km", 0.0)
@@ -58,6 +63,7 @@ class CivicScore(BaseModel):
         kwargs.setdefault("rapid_acceleration_count", 0)
         kwargs.setdefault("swerve_penalty", 0.0)
         kwargs.setdefault("speeding_penalty", 0.0)
+        kwargs.setdefault("last_calculated_at", datetime.now())
         kwargs.setdefault("calculation_version", "1.0")
         super().__init__(**kwargs)
 

@@ -38,6 +38,15 @@ class AuditEventType(str, PyEnum):
     TELEMETRY_SWERVE = "telemetry_swerve"
     TELEMETRY_SPEEDING = "telemetry_speeding"
     USER_REPORTED = "user_reported"
+    COMMUTE_CREATED = "commute_created"
+    COMMUTE_CANCELLED = "commute_cancelled"
+    OFFER_CREATED = "offer_created"
+    OFFER_CANCELLED = "offer_cancelled"
+    ADMIN_PROMOTED = "admin_promoted"
+    USER_VERIFIED = "user_verified"
+    SCORE_UPDATED = "score_updated"
+    TRIP_COMPLETED = "trip_completed"
+    SCORE_INITIALIZED = "score_initialized"
 
 
 class AuditEventSeverity(str, PyEnum):

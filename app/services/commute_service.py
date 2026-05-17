@@ -6,6 +6,7 @@ Commute lifecycle management: creation, listing, status updates.
 from datetime import date, time
 from typing import List, Optional
 
+import structlog
 from geoalchemy2 import Geography
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import CommuteNotFoundError
+from app.models.audit import AuditEventType, AuditEventSeverity
 from app.models.commute import (
     Commute,
     CommuteOffer,
@@ -21,6 +23,9 @@ from app.models.commute import (
     CommuteType,
 )
 from app.models.user import User
+from app.services.audit_service import AuditService
+
+logger = structlog.get_logger()
 
 
 class CommuteService:
@@ -88,6 +93,18 @@ class CommuteService:
 
         self.session.add(commute)
         await self.session.flush()
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                driver_id=driver_id,
+                event_type=AuditEventType.COMMUTE_CREATED,
+                severity=AuditEventSeverity.INFO,
+                commute_women_only=is_women_only,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for commute creation", error=str(audit_err))
+
         return commute
 
     async def get_commute_by_id(self, commute_id: str) -> Commute:
@@ -149,6 +166,18 @@ class CommuteService:
         commute = await self.get_commute_by_id(commute_id)
         commute.status = CommuteStatus.CANCELLED
         await self.session.flush()
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                driver_id=commute.driver_id,
+                event_type=AuditEventType.COMMUTE_CANCELLED,
+                severity=AuditEventSeverity.WARNING,
+                commute_women_only=commute.is_women_only,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for commute cancellation", error=str(audit_err))
+
         return commute
 
     async def create_commute_offer(
@@ -204,6 +233,18 @@ class CommuteService:
 
         self.session.add(offer)
         await self.session.flush()
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                passenger_id=passenger_id,
+                event_type=AuditEventType.OFFER_CREATED,
+                severity=AuditEventSeverity.INFO,
+                offer_women_only=is_women_only,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for offer creation", error=str(audit_err))
+
         return offer
 
     async def get_pending_offers_for_passenger(
@@ -245,6 +286,18 @@ class CommuteService:
 
         offer.status = "cancelled"
         await self.session.flush()
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                passenger_id=offer.passenger_id,
+                event_type=AuditEventType.OFFER_CANCELLED,
+                severity=AuditEventSeverity.WARNING,
+                offer_women_only=offer.is_women_only,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for offer cancellation", error=str(audit_err))
+
         return offer
 
     async def search_commutes(

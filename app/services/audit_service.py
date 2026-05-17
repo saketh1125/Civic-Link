@@ -87,10 +87,10 @@ class AuditService:
 
     async def log_match_event(
         self,
-        match_id: str,
-        driver_id: str,
-        passenger_id: str,
-        event_type: AuditEventType,
+        match_id: Optional[str] = None,
+        driver_id: Optional[str] = None,
+        passenger_id: Optional[str] = None,
+        event_type: AuditEventType = AuditEventType.MATCH_CREATED,
         severity: AuditEventSeverity = AuditEventSeverity.INFO,
         driver_gender: Optional[str] = None,
         passenger_gender: Optional[str] = None,

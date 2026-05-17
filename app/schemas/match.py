@@ -19,7 +19,11 @@ from app.models.match import MatchStatus, PaymentStatus
 class ConfirmMatchRequest(BaseModel):
     """Request model for confirming a match."""
 
-    pass
+    match_id: str = Field(description="The match UUID to confirm")
+    confirmed: bool = Field(description="Whether to confirm or reject the match")
+    message: Optional[str] = Field(
+        None, max_length=500, description="Optional message to the other party"
+    )
 
 
 class CancelMatchRequest(BaseModel):

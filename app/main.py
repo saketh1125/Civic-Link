@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
@@ -27,11 +28,27 @@ from app.core.exceptions import (
     UserNotFoundError,
     ValidationError as CivicValidationError,
 )
+from app.core.logging_config import configure_logging, get_logger
 from app.core.redis import close_redis, init_redis
 from app.middleware.rate_limit import RateLimitMiddleware
 
+configure_logging()
 settings = get_settings()
-logger = logging.getLogger(__name__)
+logger = get_logger()
+stdlib_logger = logging.getLogger(__name__)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Middleware that adds a unique request_id to every log context."""
+
+    async def dispatch(self, request: Request, call_next):
+        import structlog
+
+        request_id = str(uuid.uuid4())
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+        response = await call_next(request)
+        return response
 
 
 @asynccontextmanager
@@ -42,7 +59,7 @@ async def lifespan(app: FastAPI):
     - Database initialization (create_all only in development)
     - Redis connection pool initialization
     """
-    # Startup
+    logger.info("Starting Civic-Link DPI", environment=settings.environment)
     await init_db()
 
     # Gate create_all() to development only — production uses Alembic
@@ -55,9 +72,9 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     await close_redis()
     await close_db()
+    logger.info("Shutting down Civic-Link DPI")
 
 
 app = FastAPI(
@@ -68,6 +85,8 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
 )
+
+app.add_middleware(RequestIDMiddleware)
 
 # CORS middleware
 app.add_middleware(

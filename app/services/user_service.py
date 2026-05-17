@@ -5,12 +5,17 @@ User management operations: profile retrieval, updates, and verification.
 
 from typing import Optional
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import UserNotFoundError
+from app.models.audit import AuditEventType, AuditEventSeverity
 from app.models.user import User, UserRole, VerificationStatus
+from app.services.audit_service import AuditService
+
+logger = structlog.get_logger()
 
 
 class UserService:
@@ -119,6 +124,17 @@ class UserService:
 
         user.verification_status = VerificationStatus.VERIFIED
         await self.session.flush()
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                driver_id=user_id,
+                event_type=AuditEventType.USER_VERIFIED,
+                severity=AuditEventSeverity.INFO,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for user verification", error=str(audit_err))
+
         return user
 
     async def promote_to_admin(self, user_id: str) -> User:
@@ -139,4 +155,15 @@ class UserService:
 
         user.role = UserRole.ADMIN
         await self.session.flush()
+
+        try:
+            audit = AuditService(self.session)
+            await audit.log_match_event(
+                driver_id=user_id,
+                event_type=AuditEventType.ADMIN_PROMOTED,
+                severity=AuditEventSeverity.WARNING,
+            )
+        except Exception as audit_err:
+            logger.error("Audit logging failed for admin promotion", error=str(audit_err))
+
         return user
