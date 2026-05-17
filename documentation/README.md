@@ -11,8 +11,9 @@ This folder contains comprehensive documentation for the Civic-Link DPI project.
 | [03-Database-Schema.md](03-Database-Schema.md) | ER diagrams, table specifications |
 | [04-API-Reference.md](04-API-Reference.md) | Endpoint documentation |
 | [05-Testing-Guide.md](05-Testing-Guide.md) | Test procedures and scripts |
-| [06-Development-Guide.md](06-Development-Guide.md) | Setup, coding standards, workflow |
+| [06-Development-Guide.md](06-Development-Guide.md) | Setup, coding standards, workflow, Flutter development |
 | [07-Changelog.md](07-Changelog.md) | Version history and changes |
+| [08-Flutter-UI-Specification.md](08-Flutter-UI-Specification.md) | Flutter app screens, widgets, providers, navigation |
 
 ## For New Team Members
 
@@ -22,6 +23,7 @@ Then read:
 1. [02-Architecture.md](02-Architecture.md) - Understand the system
 2. [06-Development-Guide.md](06-Development-Guide.md) - Set up your environment
 3. [05-Testing-Guide.md](05-Testing-Guide.md) - Learn how to test
+4. [08-Flutter-UI-Specification.md](08-Flutter-UI-Specification.md) - Flutter app screens and architecture
 
 ## For API Consumers
 
@@ -93,4 +95,4 @@ cp -r documentation/ /backup/location/
 
 ---
 
-*Last Updated: April 15, 2026*
+*Last Updated: May 17, 2026*

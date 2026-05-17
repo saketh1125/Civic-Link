@@ -107,3 +107,59 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+def create_refresh_token(subject: str) -> str:
+    """Create a JWT refresh token with longer expiry.
+
+    Refresh tokens use type='refresh' claim to prevent access tokens
+    from being used as refresh tokens (defence-in-depth).
+
+    Args:
+        subject: The user ID to encode in the token (sub claim)
+
+    Returns:
+        Encoded JWT refresh token string
+    """
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=settings.refresh_token_expire_days
+    )
+
+    to_encode = {
+        "sub": subject,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "refresh",
+    }
+
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+    return encoded_jwt
+
+
+def decode_refresh_token(token: str) -> Optional[dict]:
+    """Decode and validate a JWT refresh token.
+
+    Validates the type='refresh' claim to prevent access tokens
+    from being accepted as refresh tokens.
+
+    Args:
+        token: The JWT token string to decode
+
+    Returns:
+        Decoded token payload dict if valid, None if invalid
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+        )
+        if payload.get("type") != "refresh":
+            return None
+        return payload
+    except JWTError:
+        return None

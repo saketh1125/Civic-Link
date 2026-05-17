@@ -21,6 +21,8 @@ import 'commute_create_screen.dart';
 import 'commute_search_screen.dart';
 import 'my_commutes_screen.dart';
 import 'my_matches_screen.dart';
+import 'profile_screen.dart';
+import 'settings_screen.dart';
 
 // =============================================================================
 // DASHBOARD SCREEN
@@ -106,7 +108,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// Builds the screen header with title and logout button.
+  /// Builds the screen header with title and action buttons.
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -135,15 +137,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ],
           ),
-          IconButton(
-            onPressed: () {
-              ref.read(authProvider.notifier).logout();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-            icon: Icon(Icons.logout, color: kHintGrey, size: 22),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const ProfileScreen()),
+                  );
+                },
+                icon: Icon(Icons.person_outline, color: kHintGrey, size: 22),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const SettingsScreen()),
+                  );
+                },
+                icon:
+                    Icon(Icons.settings_outlined, color: kHintGrey, size: 22),
+              ),
+            ],
           ),
         ],
       ),

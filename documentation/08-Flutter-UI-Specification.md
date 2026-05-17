@@ -1,28 +1,43 @@
 # Civic-Link DPI — Flutter UI Specification
 
-> **Version:** 1.0  
-> **Date:** 2026-05-16  
-> **Status:** Planning — no code changes in this session
+> **Version:** 2.0
+> **Date:** 2026-05-17
+> **Status:** Implemented — Phase 1, 2, and 3 screens complete
 
 ---
 
 ## Step 0 — Codebase Inventory
 
-### Existing Screens (2)
-| File | Screen | Notes |
-|------|--------|-------|
-| `lib/main.dart` | `LoginScreen` | Inline class, 431 lines. Full login form with email/password, server error banner, loading state. Uses `authProvider.notifier.login()`. |
-| `lib/ui/screens/dashboard_screen.dart` | `DashboardScreen` | 359 lines. Civic score display (animated number, score bar, fl_chart line chart). Calls `civicScoreProvider.notifier.startTelemetry()`. No quick actions, no navigation. |
+### Existing Screens (12)
+| File | Screen | Status |
+|------|--------|--------|
+| `lib/main.dart` | `LoginScreen` | Exists — full login form with email/password, error banner, loading state. Uses `authProvider.notifier.login()`. Added registration link and forgot password link. |
+| `lib/ui/screens/dashboard_screen.dart` | `DashboardScreen` | Exists — civic score display (animated number, score bar, fl_chart line chart). Added quick action buttons (Find Ride, Offer Ride, My Commutes, My Matches) and logout button. |
+| `lib/ui/screens/splash_screen.dart` | `SplashScreen` | **NEW** — restores session, routes to Dashboard or Login |
+| `lib/ui/screens/registration_screen.dart` | `RegistrationScreen` | **NEW** — full name, email, password, confirm password, phone, gender dropdown |
+| `lib/ui/screens/commute_create_screen.dart` | `CommuteCreateScreen` | **NEW** — origin, destination, date/time pickers, seats stepper, women-only toggle, recurring toggle, notes |
+| `lib/ui/screens/commute_search_screen.dart` | `CommuteSearchScreen` | **NEW** — origin/destination text filters, search button, CommuteCard results list. BACKEND BLOCKER: uses `GET /commutes/my` as placeholder. |
+| `lib/ui/screens/commute_detail_screen.dart` | `CommuteDetailScreen` | **NEW** — route visualization, driver info with CivicScoreBadge, "Request Ride" button |
+| `lib/ui/screens/my_commutes_screen.dart` | `MyCommutesScreen` | **NEW** — TabBar with "My Offers" / "My Requests", cancel button with confirmation dialog |
+| `lib/ui/screens/my_matches_screen.dart` | `MyMatchesScreen` | **NEW** — filter chips (All/Pending/Confirmed/Completed), MatchCard list |
+| `lib/ui/screens/match_detail_screen.dart` | `MatchDetailScreen` | **NEW** — status badge, driver/passenger info, pickup radius, women-only flag, action buttons by status |
+| `lib/ui/screens/rating_screen.dart` | `RatingScreen` | **NEW** — interactive 5-star rating, optional comment, submit to dashboard |
 
-### Missing Screens (10)
-`RegistrationScreen`, `CommuteCreateScreen`, `CommuteSearchScreen`, `CommuteDetailScreen`, `MyCommutesScreen`, `MyMatchesScreen`, `MatchDetailScreen`, `RatingScreen`, `ProfileScreen`, `SettingsScreen`
+### Remaining Screens (2)
+| Screen | Status | Notes |
+|--------|--------|-------|
+| `ProfileScreen` | Not implemented | Requires `PUT /auth/me` endpoint (backend blocker) |
+| `SettingsScreen` | Not implemented | Low priority — logout already in Dashboard header |
 
-### Existing Providers (3)
+### Existing Providers (6)
 | Provider | Type | State Shape |
 |----------|------|-------------|
 | `authServiceProvider` | `Provider<AuthService>` | Singleton service instance |
 | `authProvider` | `NotifierProvider<AuthNotifier, AuthState>` | `{userId?, accessToken?, isAuthenticated}` |
 | `civicScoreProvider` | `NotifierProvider<CivicScoreNotifier, CivicScoreState>` | `{currentScore, scoreHistory[]}` |
+| `commuteProvider` | `NotifierProvider<CommuteNotifier, CommuteState>` | `{commutes[], isLoading, error}` |
+| `commuteSearchProvider` | `NotifierProvider<CommuteSearchNotifier, CommuteSearchState>` | `{results[], isLoading, filters}` |
+| `matchProvider` | `NotifierProvider<MatchNotifier, MatchState>` | `{matches[], isLoading, error}` |
 
 ### Existing Services (2)
 | Service | Purpose |
@@ -42,9 +57,20 @@
 | `TelemetryBatch` | `services/telemetry_isolate.dart` |
 | `TelemetryCommand` (sealed) | `services/telemetry_isolate.dart` |
 | `TelemetryStatus` (sealed) | `services/telemetry_isolate.dart` |
+| `Commute` | `providers/commute_provider.dart` |
+| `CommuteDetail` | `providers/commute_provider.dart` |
+| `Match` | `providers/match_provider.dart` |
+| `MatchDetail` | `providers/match_provider.dart` |
 
-### Shared Widgets
-**None.** No `lib/ui/widgets/` directory exists.
+### Shared Widgets (6)
+| Widget | File | Purpose |
+|--------|------|---------|
+| `CivicScoreBadge` | `lib/ui/widgets/civic_score_badge.dart` | Circular badge with tier colors (green ≥90, yellow ≥70, red <70) |
+| `CommuteCard` | `lib/ui/widgets/commute_card.dart` | Commute summary card with route, time, seats, women-only indicator |
+| `MatchCard` | `lib/ui/widgets/match_card.dart` | Match summary card with status chip, user info, actions |
+| `LoadingOverlay` | `lib/ui/widgets/loading_overlay.dart` | Full-screen semi-transparent overlay with spinner |
+| `ErrorBanner` | `lib/ui/widgets/error_banner.dart` | Colored banner (error/warning/info) with dismiss button |
+| `AuthGuard` | `lib/ui/widgets/auth_guard.dart` | Watches `authProvider`, redirects to login if not authenticated |
 
 ### Dependencies (`pubspec.yaml`)
 | Package | Version | Purpose |
@@ -795,5 +821,5 @@ All widgets are to be created in `lib/ui/widgets/`.
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: May 16, 2026*
+*Document Version: 2.0*
+*Last Updated: May 17, 2026*

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'services/auth_service.dart';
 import 'providers/auth_provider.dart';
+import 'providers/theme_provider.dart';
 import 'ui/screens/dashboard_screen.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/screens/registration_screen.dart';
@@ -67,10 +68,53 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Civic-Link',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
+    return Consumer(
+      builder: (context, ref, _) {
+        final themeMode = ref.watch(themeProvider);
+        return MaterialApp(
+          title: 'Civic-Link',
+          debugShowCheckedModeBanner: false,
+          themeMode: themeMode,
+          theme: ThemeData.light().copyWith(
+            scaffoldBackgroundColor: Colors.white,
+            colorScheme: const ColorScheme.light(
+              primary: kAccentGreen,
+              onPrimary: Colors.white,
+              secondary: kAccentGreen,
+              onSecondary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+              error: Colors.redAccent,
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.grey.shade100,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccentGreen,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+            dividerColor: Colors.grey.shade200,
+          ),
+          darkTheme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: kPrimaryBlack,
         colorScheme: ColorScheme.dark(
           primary: kAccentGreen,
@@ -135,6 +179,8 @@ class MyApp extends StatelessWidget {
         dividerColor: Colors.white.withOpacity(0.08),
       ),
       home: const SplashScreen(),
+        );
+      },
     );
   }
 }

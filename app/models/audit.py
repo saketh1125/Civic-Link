@@ -47,6 +47,7 @@ class AuditEventType(str, PyEnum):
     SCORE_UPDATED = "score_updated"
     TRIP_COMPLETED = "trip_completed"
     SCORE_INITIALIZED = "score_initialized"
+    TOKEN_REFRESHED = "token_refreshed"
 
 
 class AuditEventSeverity(str, PyEnum):

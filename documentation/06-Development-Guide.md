@@ -6,6 +6,7 @@
 
 - Docker & Docker Compose
 - Python 3.12+ (for local development)
+- Flutter 3.11+ (for mobile app development)
 - Git
 
 ### Quick Start
@@ -543,6 +544,135 @@ Brief description of changes
 
 ---
 
+## Flutter Development
+
+### Setup
+
+```bash
+cd civic_link
+
+# Install dependencies
+flutter pub get
+
+# Run on connected device/emulator
+flutter run
+
+# Run with specific device
+flutter run -d <device_id>
+
+# List connected devices
+flutter devices
+```
+
+### Code Quality
+
+```bash
+# Static analysis
+flutter analyze
+
+# Format code
+dart format lib/
+
+# Run tests
+flutter test
+
+# Run specific test
+flutter test test/widget_test.dart
+```
+
+### Project Structure
+
+```
+civic_link/lib/
+├── main.dart                    # App entry, constants, LoginScreen
+├── providers/
+│   ├── auth_provider.dart       # Auth state (AuthNotifier)
+│   ├── civic_score_provider.dart # Score state (CivicScoreNotifier)
+│   ├── commute_provider.dart    # Commute CRUD (CommuteNotifier)
+│   ├── commute_search_provider.dart # Search with filters
+│   └── match_provider.dart      # Match CRUD (MatchNotifier)
+├── services/
+│   ├── auth_service.dart        # Dio HTTP, secure storage, email hashing
+│   └── telemetry_isolate.dart   # 50Hz IMU isolate
+├── ui/
+│   ├── screens/                 # All screen widgets
+│   └── widgets/                 # Shared reusable widgets
+└── utils/
+    └── privacy_crypto.dart      # SHA-256 email hashing
+```
+
+### Provider Pattern
+
+All providers follow the `Notifier` pattern (consistent with Riverpod 3.x):
+
+```dart
+class MyNotifier extends Notifier<MyState> {
+  @override
+  MyState build() {
+    // Read auth token for API calls
+    final authState = ref.read(authProvider);
+    return MyState.initial();
+  }
+
+  Future<void> fetchData() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      // API call using Dio
+      state = state.copyWith(data: result, isLoading: false);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        ref.read(authProvider.notifier).logout();
+        return;
+      }
+      state = state.copyWith(error: _extractError(e), isLoading: false);
+    }
+  }
+}
+```
+
+### Auth Guard Pattern
+
+Protected screens wrap content in `AuthGuard`:
+
+```dart
+class ProtectedScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AuthGuard(
+      child: Scaffold(
+        // ... screen content
+      ),
+    );
+  }
+}
+```
+
+### Backend Endpoints (Flutter)
+
+| Endpoint | Method | Auth | Used By |
+|----------|--------|------|---------|
+| `/auth/register` | POST | No | RegistrationScreen |
+| `/auth/login/access-token` | POST | No | LoginScreen |
+| `/auth/verify` | POST | Yes | (not yet used) |
+| `/auth/me` | GET | Yes | (not yet used) |
+| `/commutes` | POST | Yes | CommuteCreateScreen |
+| `/commutes/my` | GET | Yes | MyCommutesScreen, CommuteSearchScreen (stub) |
+| `/commutes/{id}` | GET | Yes | CommuteDetailScreen |
+| `/commutes/{id}/cancel` | POST | Yes | MyCommutesScreen |
+| `/matches/{commute_id}/request` | POST | Yes | CommuteDetailScreen |
+| `/matches/{match_id}/confirm` | POST | Yes | MatchDetailScreen |
+| `/matches/my` | GET | Yes | MyMatchesScreen |
+| `/matches/{match_id}` | GET | Yes | MatchDetailScreen |
+| `/matches/{match_id}/rate` | POST | Yes | RatingScreen |
+
+### Known Backend Blockers
+
+1. **`GET /commutes/search`** — Missing. `CommuteSearchProvider` uses `GET /commutes/my` with client-side filtering as placeholder.
+2. **`PUT /auth/me`** — Missing. ProfileScreen cannot support profile editing.
+3. **`POST /auth/password-reset`** — Missing. "Forgot password?" link shows placeholder SnackBar.
+
+---
+
 ## Redis Usage
 
 ### Client API
@@ -747,5 +877,5 @@ Follow Semantic Versioning: `MAJOR.MINOR.PATCH`
 
 ---
 
-*Document Version: 2.0*  
-*Last Updated: May 16, 2026*
+*Document Version: 3.0*
+*Last Updated: May 17, 2026*

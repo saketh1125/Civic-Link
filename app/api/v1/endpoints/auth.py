@@ -3,6 +3,7 @@
 User registration and login with JWT token generation.
 """
 
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -14,9 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user, get_current_user_unverified
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    get_password_hash,
+    verify_password,
+)
 from app.models.user import Gender, User, UserRole, VerificationStatus
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
 
@@ -111,7 +119,11 @@ class TokenResponse(BaseModel):
     
     access_token: str = Field(
         ...,
-        description="JWT access token",
+        description="JWT access token (short-lived)",
+    )
+    refresh_token: str = Field(
+        ...,
+        description="JWT refresh token (long-lived, for obtaining new access tokens)",
     )
     token_type: str = Field(
         default="bearer",
@@ -119,7 +131,7 @@ class TokenResponse(BaseModel):
     )
     expires_in: int = Field(
         ...,
-        description="Token expiration time in seconds",
+        description="Access token expiration time in seconds",
     )
 
 
@@ -273,11 +285,13 @@ async def login_access_token(
     user.update_last_login()
     await session.commit()
     
-    # Create access token
+    # Create access token and refresh token
     access_token = create_access_token(subject=str(user.id))
+    refresh_token = create_refresh_token(subject=str(user.id))
     
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=settings.access_token_expire_minutes * 60,
     )
@@ -301,6 +315,93 @@ class VerifyAccountResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request model for refreshing an access token."""
+
+    refresh_token: str = Field(
+        ...,
+        description="Valid JWT refresh token",
+    )
+
+
+@router.post(
+    "/refresh-token",
+    response_model=TokenResponse,
+    summary="Refresh access token",
+    description="""
+    Obtain a new access token using a valid refresh token.
+    
+    The refresh token must have type='refresh' claim.
+    A new refresh token is also issued (token rotation).
+    
+    Does not require authentication — accepts an expired access token context.
+    """,
+)
+async def refresh_access_token(
+    request: RefreshTokenRequest,
+    session: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Issue a new access token using a refresh token.
+    
+    Args:
+        request: Refresh token
+        session: Database session
+        
+    Returns:
+        New access token and rotated refresh token
+        
+    Raises:
+        HTTPException: 401 if refresh token is invalid or expired
+    """
+    payload = decode_refresh_token(request.refresh_token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="INVALID_REFRESH_TOKEN",
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="INVALID_REFRESH_TOKEN",
+        )
+
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="INVALID_REFRESH_TOKEN",
+        )
+
+    access_token = create_access_token(subject=str(user.id))
+    refresh_token = create_refresh_token(subject=str(user.id))
+
+    try:
+        from app.models.audit import AuditEventType
+        from app.services.audit_service import AuditService
+
+        audit_service = AuditService(session)
+        await audit_service.log_match_event(
+            match_id=str(user.id),
+            driver_id=str(user.id),
+            passenger_id=str(user.id),
+            event_type=AuditEventType.TOKEN_REFRESHED,
+        )
+    except Exception:
+        logger.warning("Failed to log token refresh audit for user %s", user.id)
+
+    await session.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=settings.access_token_expire_minutes * 60,
+    )
 
 
 @router.post(

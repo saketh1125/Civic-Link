@@ -12,6 +12,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Real-time WebSocket updates
 - Load testing and performance optimization
 - Real email verification flow (replace placeholder token)
+- `GET /commutes/search` backend endpoint (currently stubbed with `GET /commutes/my`)
+- `PUT /auth/me` endpoint for profile editing
+- `go_router` migration for named routes
+- Maps integration for commute coordinate picker
+
+---
+
+## [0.4.0] - 2026-05-17
+
+### Flutter UI — Phase 1, 2, and 3 Screens
+
+#### Added
+- **Shared Widget Library** (`lib/ui/widgets/`)
+  - `CivicScoreBadge` — circular badge with tier colors (green ≥90, yellow ≥70, red <70)
+  - `CommuteCard` — commute summary card with route, time, seats, women-only indicator
+  - `MatchCard` — match summary card with status chip, user info, actions
+  - `LoadingOverlay` — full-screen semi-transparent overlay with spinner
+  - `ErrorBanner` — colored banner (error/warning/info) with dismiss button
+  - `AuthGuard` — watches `authProvider`, redirects to login if not authenticated
+
+- **Riverpod Providers** (`lib/providers/`)
+  - `commuteProvider` — `Notifier<CommuteState>` for commute CRUD (create, fetchMy, fetchDetail, cancel)
+  - `commuteSearchProvider` — `Notifier<CommuteSearchState>` for search with client-side filtering
+  - `matchProvider` — `Notifier<MatchState>` for match CRUD (request, confirm, fetchMy, fetchDetail, rate)
+  - All providers use `Notifier` pattern (consistent with existing `authProvider`)
+  - All providers read token from `authProvider` and handle 401 with auto-logout
+
+- **Phase 1 — Auth Screens**
+  - `SplashScreen` — restores session, routes to Dashboard or Login
+  - `RegistrationScreen` — full name, email, password, confirm password, phone, gender dropdown
+  - `LoginScreen` — added "Forgot password?" link (placeholder) and "Register" link
+
+- **Phase 2 — Commute Screens**
+  - `CommuteCreateScreen` — origin, destination, date picker, time picker, seats stepper, women-only toggle, recurring toggle, notes
+  - `CommuteSearchScreen` — origin/destination text filters, search button, CommuteCard results list
+  - `CommuteDetailScreen` — route visualization, driver info with CivicScoreBadge, "Request Ride" button
+  - `MyCommutesScreen` — TabBar with "My Offers" / "My Requests", cancel button with confirmation dialog
+
+- **Phase 3 — Match Screens**
+  - `MyMatchesScreen` — filter chips (All/Pending/Confirmed/Completed), MatchCard list
+  - `MatchDetailScreen` — status badge, driver/passenger info, pickup radius, women-only flag, action buttons by status
+  - `RatingScreen` — interactive 5-star rating, optional comment, submit to dashboard
+
+- **Navigation Wiring**
+  - All new routes registered in `main.dart`
+  - `SplashScreen` set as initial route (replaces direct LoginScreen/DashboardScreen routing)
+  - `MyApp` simplified to `StatelessWidget` — auth check moved to SplashScreen
+
+- **Dashboard Enhancements**
+  - Quick action buttons: "Find Ride", "Offer Ride", "My Commutes", "My Matches"
+  - Logout button in header
+
+#### Changed
+- `lib/main.dart` — imports all new screens, `MyApp` is now `StatelessWidget`, home = `SplashScreen`
+- `lib/ui/screens/dashboard_screen.dart` — added quick action buttons and logout button
+
+#### Technical Notes
+- No new dependencies added — all code uses existing `pubspec.yaml` packages
+- `GET /commutes/search` endpoint is MISSING from backend — `CommuteSearchProvider` stubbed with `GET /commutes/my` + client-side filtering
+- Commute creation uses hardcoded Hyderabad coordinates (17.4930, 78.4020) as placeholder — needs map picker
+- All screens wrapped in `AuthGuard` for auth protection
+- All Dio instances read token from `authProvider` — no hardcoded tokens
 
 ---
 
@@ -474,4 +536,4 @@ Digital Public Infrastructure - Open Source
 
 *This changelog documents the journey of building a safety-first carpooling platform for the Cyberabad IT Corridor.*
 
-*Last Updated: May 16, 2026*
+*Last Updated: May 17, 2026*

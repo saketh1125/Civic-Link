@@ -16,11 +16,13 @@ import '../main.dart';
 class AuthState {
   final String? userId;
   final String? accessToken;
+  final String? refreshToken;
   final bool isAuthenticated;
 
   const AuthState({
     this.userId,
     this.accessToken,
+    this.refreshToken,
     this.isAuthenticated = false,
   });
 
@@ -31,11 +33,13 @@ class AuthState {
   AuthState copyWith({
     String? userId,
     String? accessToken,
+    String? refreshToken,
     bool? isAuthenticated,
   }) {
     return AuthState(
       userId: userId ?? this.userId,
       accessToken: accessToken ?? this.accessToken,
+      refreshToken: refreshToken ?? this.refreshToken,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
     );
   }
@@ -63,10 +67,12 @@ class AuthNotifier extends Notifier<AuthState> {
     final result = await _authService.login(email, password);
     if (result.isSuccess && result.data != null) {
       final token = result.data!.accessToken;
+      final refreshToken = result.data!.refreshToken;
       final userId = await _authService.getUserId();
       state = state.copyWith(
         userId: userId ?? 'unknown',
         accessToken: token,
+        refreshToken: refreshToken,
         isAuthenticated: true,
       );
     }
@@ -101,20 +107,36 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> restoreSession() async {
-    final valid = await _authService.checkSessionValidity();
-    if (!valid) {
-      state = AuthState.unauthenticated();
-      return;
-    }
     final token = await _authService.getAccessToken();
     final userId = await _authService.getUserId();
+    final refreshToken = await _authService.getRefreshToken();
+
     if (token != null && userId != null) {
       state = state.copyWith(
         userId: userId,
         accessToken: token,
+        refreshToken: refreshToken,
         isAuthenticated: true,
       );
+      return;
     }
+
+    // Access token expired but refresh token exists — attempt refresh
+    if (refreshToken != null && userId != null) {
+      final newToken = await _authService.refreshToken();
+      if (newToken != null) {
+        final newRefresh = await _authService.getRefreshToken();
+        state = state.copyWith(
+          userId: userId,
+          accessToken: newToken,
+          refreshToken: newRefresh,
+          isAuthenticated: true,
+        );
+        return;
+      }
+    }
+
+    state = AuthState.unauthenticated();
   }
 
   Future<bool> checkSessionValidity() async {

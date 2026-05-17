@@ -55,11 +55,13 @@ class AuthResult<T> {
 /// Login response from backend
 class LoginResponse {
   final String accessToken;
+  final String refreshToken;
   final String tokenType;
   final int expiresIn;
 
   const LoginResponse({
     required this.accessToken,
+    required this.refreshToken,
     required this.tokenType,
     required this.expiresIn,
   });
@@ -67,6 +69,7 @@ class LoginResponse {
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
     return LoginResponse(
       accessToken: json['access_token'] as String,
+      refreshToken: json['refresh_token'] as String? ?? '',
       tokenType: json['token_type'] as String? ?? 'bearer',
       expiresIn: json['expires_in'] as int? ?? 3600,
     );
@@ -106,6 +109,7 @@ class AuthService {
 
   static const String _tokenKey = 'civic_link_access_token';
   static const String _tokenExpiryKey = 'civic_link_token_expiry';
+  static const String _refreshTokenKey = 'civic_link_refresh_token';
   static const String _userIdKey = 'civic_link_user_id';
 
   AuthService({
@@ -122,9 +126,18 @@ class AuthService {
       InterceptorsWrapper(
         onError: (error, handler) async {
           if (error.response?.statusCode == 401) {
-            await _secureStorage.delete(key: _tokenKey);
-            await _secureStorage.delete(key: _tokenExpiryKey);
-            await _secureStorage.delete(key: _userIdKey);
+            final refreshed = await _attemptTokenRefresh();
+            if (refreshed) {
+              try {
+                final token = await _secureStorage.read(key: _tokenKey);
+                error.requestOptions.headers['Authorization'] =
+                    'Bearer $token';
+                final response = await _dio.fetch(error.requestOptions);
+                handler.resolve(response);
+                return;
+              } catch (_) {}
+            }
+            await logout();
             onUnauthorized?.call();
           }
           handler.next(error);
@@ -171,6 +184,12 @@ class AuthService {
 
       // Securely store the token and userId
       await _storeToken(loginData.accessToken, loginData.expiresIn);
+      if (loginData.refreshToken.isNotEmpty) {
+        await _secureStorage.write(
+          key: _refreshTokenKey,
+          value: loginData.refreshToken,
+        );
+      }
       if (userId != null) {
         await _secureStorage.write(key: _userIdKey, value: userId);
       }
@@ -242,9 +261,19 @@ class AuthService {
     }
   }
 
-  /// Retrieves stored access token for authenticated requests.
+  /// Clears all stored authentication data.
   ///
-  /// Returns null if no token exists or token has expired.
+  /// Call this on logout or token invalidation.
+  Future<void> logout() async {
+    await _secureStorage.delete(key: _tokenKey);
+    await _secureStorage.delete(key: _tokenExpiryKey);
+    await _secureStorage.delete(key: _refreshTokenKey);
+    await _secureStorage.delete(key: _userIdKey);
+  }
+
+  /// Retrieves stored access token.
+  ///
+  /// Returns null if no valid token exists.
   Future<String?> getAccessToken() async {
     try {
       final token = await _secureStorage.read(key: _tokenKey);
@@ -257,7 +286,6 @@ class AuthService {
       // Check token expiry
       final expiry = DateTime.tryParse(expiryStr);
       if (expiry != null && DateTime.now().isAfter(expiry)) {
-        // Token expired, clear it
         await logout();
         return null;
       }
@@ -268,13 +296,15 @@ class AuthService {
     }
   }
 
-  /// Clears all stored authentication data.
+  /// Retrieves stored refresh token.
   ///
-  /// Call this on logout or token invalidation.
-  Future<void> logout() async {
-    await _secureStorage.delete(key: _tokenKey);
-    await _secureStorage.delete(key: _tokenExpiryKey);
-    await _secureStorage.delete(key: _userIdKey);
+  /// Returns null if no refresh token is stored.
+  Future<String?> getRefreshToken() async {
+    try {
+      return await _secureStorage.read(key: _refreshTokenKey);
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Retrieves stored user ID.
@@ -286,6 +316,56 @@ class AuthService {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Attempts to refresh the access token using the stored refresh token.
+  ///
+  /// Uses a separate Dio instance to avoid interceptor recursion.
+  /// Returns the new access token on success, null on failure.
+  Future<String?> refreshToken() async {
+    final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
+    if (refreshToken == null || refreshToken.isEmpty) return null;
+
+    try {
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: _dio.options.baseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 10),
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
+
+      final response = await refreshDio.post(
+        '/api/v1/auth/refresh-token',
+        data: {'refresh_token': refreshToken},
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final newAccessToken = data['access_token'] as String;
+      final newRefreshToken = data['refresh_token'] as String? ?? '';
+      final expiresIn = data['expires_in'] as int? ?? 3600;
+
+      await _storeToken(newAccessToken, expiresIn);
+      if (newRefreshToken.isNotEmpty) {
+        await _secureStorage.write(
+          key: _refreshTokenKey,
+          value: newRefreshToken,
+        );
+      }
+
+      return newAccessToken;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Internal: attempts token refresh from the 401 interceptor.
+  ///
+  /// Only one refresh attempt per failed request.
+  Future<bool> _attemptTokenRefresh() async {
+    final result = await refreshToken();
+    return result != null;
   }
 
   /// Stores token securely with expiration tracking.
@@ -321,7 +401,7 @@ class AuthService {
       if (parts.length != 3) return false;
 
       final payload = jsonDecode(
-        utf8.decode(base64Url.normalize(parts[1]).codeUnits),
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
       ) as Map;
 
       final exp = payload['exp'] as int?;
