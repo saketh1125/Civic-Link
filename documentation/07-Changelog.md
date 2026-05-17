@@ -10,10 +10,145 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Planned
 - Real-time WebSocket updates
-- Production deployment pipeline
 - Load testing and performance optimization
-- Alembic migrations setup
-- Redis caching layer
+- Real email verification flow (replace placeholder token)
+
+---
+
+## [0.3.0] - 2026-05-16
+
+### Infrastructure Stability Sprint
+
+#### Added
+- **Alembic Migrations**
+  - `migrations/env.py` — async Alembic environment with PostGIS schema filtering
+  - `migrations/versions/e14fe2c5ae57_initial_schema.py` — initial migration covering all 8 models
+  - Round-trip downgrade/upgrade verified
+  - `DATABASE_URL` read dynamically from environment (not hardcoded in alembic.ini)
+
+- **Redis Client**
+  - `app/core/redis.py` — async Redis client using `redis.asyncio`
+  - Lifespan-managed connection pool (initialized at startup, closed on shutdown)
+  - Utility functions: `set_with_ttl()`, `get()`, `delete()`, `exists()`, `increment()`
+  - Graceful degradation: if Redis is unreachable, operations return None/False without crashing
+  - Health check key set on startup (`redis:health` with 60s TTL)
+
+- **Rate Limiting Middleware**
+  - `app/middleware/rate_limit.py` — sliding window rate limiter using Redis sorted sets
+  - Auth endpoints: 10 requests/minute per IP
+  - Registration: 5 requests/minute per IP
+  - Telemetry ingestion: 30 requests/minute per user
+  - Other authenticated endpoints: 120 requests/minute per user
+  - Returns HTTP 429 with `retry_after_seconds` on limit exceeded
+  - Skips rate limiting when Redis is unavailable (logs warning)
+  - Health check, docs, and root endpoints are exempt
+
+- **Global Exception Handlers**
+  - `CivicLinkSafetyException` → 400
+  - `GeospatialConflictError` → 409
+  - `AuditLogError` → 500
+  - `UserNotFoundError` → 404
+  - `CommuteNotFoundError` → 404
+  - `MatchNotFoundError` → 404
+  - `ValidationError` → 422
+  - `AuthenticationError` → 401
+  - `AuthorizationError` → 403
+  - `RateLimitError` → 429
+  - `RequestValidationError` (Pydantic) → 422 with field-level details
+  - Generic `Exception` → 500 (logs full traceback, never exposes internals to client)
+  - All responses include structured JSON: `{error, code, request_id, detail?}`
+
+- **Production Nginx Configuration**
+  - `nginx.conf` — reverse proxy to FastAPI upstream
+  - Gzip compression for JSON responses
+  - Security headers: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy no-referrer, Permissions-Policy
+  - Nginx-level rate limiting: 10r/s burst 20 for `/api/v1/auth/`, 30r/s burst 60 for other `/api/`
+  - `/health` endpoint bypasses rate limiting
+  - TLS configuration as commented template (cert paths environment-specific)
+
+- **Production Docker Compose**
+  - `docker-compose.prod.yml` — services: api, postgres, redis, nginx, migrations
+  - Migrations service runs before API (`depends_on: condition: service_completed_successfully`)
+  - PostgreSQL: no exposed ports, volume persistence, restart: always
+  - Redis: appendonly persistence, 128mb maxmemory, allkeys-lru eviction
+  - API: no `--reload`, no source mounts, resource limits (512m memory, 0.5 CPU)
+  - Nginx: ports 80/443, mounts `nginx.conf`, restart: always
+  - All secrets read from `.env.production`
+
+- **Multi-Stage Dockerfile**
+  - Builder stage installs dependencies with build tools
+  - Production stage copies only runtime dependencies
+  - `PYTHONDONTWRITEBYTECODE=1`, `PYTHONUNBUFFERED=1`
+  - Default command: `uvicorn ... --workers 4` (no `--reload`)
+
+#### Changed
+- **`app/main.py`** — complete rewrite:
+  - `create_all()` gated to development only (`if settings.is_development`)
+  - Redis lifespan initialization alongside database
+  - Version bumped to 0.2.1
+  - All exception handlers registered
+  - Rate limiting middleware added
+
+- **`app/models/civic_score.py`** — added `__init__` with Python-level defaults for direct instantiation (tests)
+
+#### Fixed
+- CivicScore model: Python-level defaults added — 5 tests that create `CivicScore()` directly now pass
+- All 28 tests pass after infrastructure changes
+
+#### Security
+- `create_all()` never runs in production — database managed exclusively by Alembic
+- Exception handlers never expose stack traces or internal details to API clients
+- Rate limiting prevents brute-force attacks on auth endpoints
+- Nginx security headers prevent clickjacking, MIME sniffing, and unauthorized API access
+
+---
+
+## [0.2.1] - 2026-05-16
+
+### Security Hardening Sprint
+
+#### Added
+- **Account Verification Flow**
+  - `POST /api/v1/auth/verify` — Verify account (placeholder: accepts user ID as token)
+  - `get_current_user_unverified` dependency for pre-verification endpoints
+  - Registration now sets `verification_status=PENDING` instead of `VERIFIED`
+  - Protected endpoints now return HTTP 403 `ACCOUNT_NOT_VERIFIED` for unverified users
+
+- **Audit Logging for Match Events**
+  - `create_match` → logs `MATCH_CREATED` audit entry
+  - `confirm_match` → logs `MATCH_CONFIRMED` audit entry
+  - `cancel_match` → logs `MATCH_CANCELLED` audit entry (new method)
+  - `complete_match` → logs `MATCH_COMPLETED` audit entry (new method)
+  - Safety alerts auto-logged for unverified users or CivicScore < 40
+  - All audit calls wrapped in try/except — failures never roll back matches
+
+- **Flutter Auth Resilience**
+  - `checkSessionValidity()` — local JWT expiry check without network call
+  - Dio 401 interceptor — auto-logout on unauthorized responses
+  - `onUnauthorized` callback — triggers logout + redirect to LoginScreen
+  - DashboardScreen validates token before starting telemetry
+
+- **Environment Configuration**
+  - `.env.example` — template with placeholder instructions
+  - `.env.staging` — staging environment template
+  - `.env.production` — production environment template
+
+#### Changed
+- **Secret Management**
+  - `secret_key`, `jwt_secret_key`, `audit_log_encryption_key` now REQUIRED (no defaults)
+  - Removed unsafe `os.urandom(32)` fallback in `AuditService`
+  - Rotated `AUDIT_LOG_ENCRYPTION_KEY` and `JWT_SECRET_KEY`
+
+- **Auth Dependency**
+  - `get_current_active_user` now enforces `VerificationStatus.VERIFIED`
+  - Unverified users receive HTTP 403 with structured error response
+
+#### Security
+- All secrets externalized to environment variables — zero hardcoded values in source
+- Account verification enforced before accessing protected endpoints
+- Every match state transition generates an encrypted AES-256-GCM audit log entry
+- Flutter app auto-logs out on token expiry or 401 responses
+- Session validity checked on dashboard load before starting telemetry
 
 ---
 
@@ -167,7 +302,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Database-level gender filtering (immutable rule)
 - 500m geospatial radius for matching
 - Safety snapshots preserved at match time
-- AES-256-GCM encryption ready for audit logs
+- AES-256-GCM encryption for audit logs
+- Zero-Liability: email hashed client-side before transmission
 
 ---
 
@@ -261,33 +397,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Current
 - Scripts must run inside Docker container (local Python lacks dependencies)
 - Verification results written inside container (need volume mount for local access)
+- `POST /auth/verify` uses placeholder token (user ID) — real email flow pending
 
 ### Resolved
 - ✅ PostgreSQL container startup failures
 - ✅ Permission denied on init.sql
 - ✅ PostGIS configuration errors
+- ✅ Hardcoded secrets in source code (rotated and externalized)
+- ✅ Verification bypass — unverified users could access protected endpoints
+- ✅ Audit logs not generated for match events
+- ✅ Flutter app sent empty Bearer token on null auth state
+- ✅ `create_all()` bypassing Alembic in production
+- ✅ Redis client not implemented (was empty stub)
+- ✅ Alembic migrations not set up (was empty stub)
+- ✅ No rate limiting on API endpoints
+- ✅ No production Docker configuration
+- ✅ No global exception handlers
+- ✅ CivicScore Python-level defaults missing (broke 5 unit tests)
 
 ### Future Improvements
 - Add GitHub Actions CI/CD pipeline
 - Implement WebSocket for real-time updates
 - Add comprehensive unit test suite
 - Create load testing with Locust
-- Implement JWT authentication
-- Add rate limiting
+- Implement real email verification flow (replace placeholder token)
+- Add Prometheus metrics endpoint
+- Set up Sentry error tracking in production
 
 ---
 
 ## Migration Notes
+
+### From 0.2.1 to 0.3.0
+- **Breaking:** `create_all()` no longer runs in production. You must run `alembic upgrade head` before starting the API.
+- **Breaking:** Database schema is now managed by Alembic. The initial migration `e14fe2c5ae57` creates all 8 tables.
+- **Action:** Run `docker compose run --rm api alembic upgrade head` on first deploy.
+- **New:** Redis is now required for rate limiting (graceful degradation if unavailable).
+- **New:** Nginx is the entry point in production — update any DNS/port configurations.
+
+### From 0.2.0 to 0.2.1
+- **Breaking:** `SECRET_KEY`, `AUDIT_LOG_ENCRYPTION_KEY`, and `JWT_SECRET_KEY` are now required environment variables. The application will refuse to start without them.
+- **Breaking:** Newly registered users have `verification_status=PENDING` instead of `VERIFIED`. Call `POST /auth/verify` to verify accounts.
+- **Action:** Copy `.env.example` to `.env` and generate new secret keys.
+- **Action:** Existing users in the database will need their `verification_status` set to `VERIFIED` if they should retain access.
 
 ### From 0.0.x to 0.1.0
 No migrations needed (initial release).
 
 ### Database Setup
 ```bash
-# Fresh install
+# Fresh install (development)
 docker compose up -d postgres
-docker compose run --rm migrations alembic upgrade head
+docker compose run --rm api alembic upgrade head
 docker compose exec api python app/seed_kphb.py
+
+# Fresh install (production)
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+# Migrations run automatically via the migrations service
 ```
 
 ---
@@ -308,4 +474,4 @@ Digital Public Infrastructure - Open Source
 
 *This changelog documents the journey of building a safety-first carpooling platform for the Cyberabad IT Corridor.*
 
-*Last Updated: April 15, 2026*
+*Last Updated: May 16, 2026*

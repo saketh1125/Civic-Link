@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.exceptions import CivicLinkSafetyException
 from app.models.user import User
 from app.schemas.match import (
+    CancelMatchRequest,
     MatchDetailResponse,
     MatchListResponse,
     MatchResponse,
@@ -104,6 +105,155 @@ async def confirm_match(
     """
     service = MatchingService(session)
     match = await service.confirm_match(match_id)
+
+    return MatchResponse(
+        id=str(match.id),
+        commute_id=match.commute_id,
+        driver_id=match.driver_id,
+        passenger_id=match.passenger_id,
+        status=match.status,
+        pickup_radius_meters=match.pickup_radius_meters,
+        fare_amount=float(match.fare_amount) if match.fare_amount else None,
+        payment_status=match.payment_status,
+        commute_was_women_only=match.commute_was_women_only,
+        offer_was_women_only=match.offer_was_women_only,
+        confirmed_at=match.confirmed_at,
+        started_at=match.started_at,
+        completed_at=match.completed_at,
+    )
+
+
+@router.post(
+    "/{match_id}/start",
+    response_model=MatchResponse,
+    summary="Start a confirmed match",
+)
+async def start_match(
+    match_id: str,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> MatchResponse:
+    """Start a confirmed match (driver action).
+
+    Args:
+        match_id: Match UUID
+        session: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Started match
+    """
+    service = MatchingService(session)
+    match = await service.start_match(match_id)
+
+    return MatchResponse(
+        id=str(match.id),
+        commute_id=match.commute_id,
+        driver_id=match.driver_id,
+        passenger_id=match.passenger_id,
+        status=match.status,
+        pickup_radius_meters=match.pickup_radius_meters,
+        fare_amount=float(match.fare_amount) if match.fare_amount else None,
+        payment_status=match.payment_status,
+        commute_was_women_only=match.commute_was_women_only,
+        offer_was_women_only=match.offer_was_women_only,
+        confirmed_at=match.confirmed_at,
+        started_at=match.started_at,
+        completed_at=match.completed_at,
+    )
+
+
+@router.post(
+    "/{match_id}/cancel",
+    response_model=MatchResponse,
+    summary="Cancel a match",
+)
+async def cancel_match(
+    match_id: str,
+    request: CancelMatchRequest,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> MatchResponse:
+    """Cancel a pending or confirmed match.
+
+    Args:
+        match_id: Match UUID
+        request: Cancellation details
+        session: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Cancelled match
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.match import CommuteMatch
+
+    result = await session.execute(
+        select(CommuteMatch)
+        .where(CommuteMatch.id == match_id)
+        .options(selectinload(CommuteMatch.commute))
+    )
+    match = result.scalar_one_or_none()
+
+    if not match:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found",
+        )
+
+    if (
+        match.driver_id != str(current_user.id)
+        and match.passenger_id != str(current_user.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to cancel this match",
+        )
+
+    service = MatchingService(session)
+    match = await service.cancel_match(match_id)
+
+    return MatchResponse(
+        id=str(match.id),
+        commute_id=match.commute_id,
+        driver_id=match.driver_id,
+        passenger_id=match.passenger_id,
+        status=match.status,
+        pickup_radius_meters=match.pickup_radius_meters,
+        fare_amount=float(match.fare_amount) if match.fare_amount else None,
+        payment_status=match.payment_status,
+        commute_was_women_only=match.commute_was_women_only,
+        offer_was_women_only=match.offer_was_women_only,
+        confirmed_at=match.confirmed_at,
+        started_at=match.started_at,
+        completed_at=match.completed_at,
+    )
+
+
+@router.post(
+    "/{match_id}/complete",
+    response_model=MatchResponse,
+    summary="Complete a match",
+)
+async def complete_match(
+    match_id: str,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> MatchResponse:
+    """Complete an in-progress match (driver action).
+
+    Args:
+        match_id: Match UUID
+        session: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Completed match
+    """
+    service = MatchingService(session)
+    match = await service.complete_match(match_id)
 
     return MatchResponse(
         id=str(match.id),

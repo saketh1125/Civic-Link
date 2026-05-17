@@ -8,9 +8,15 @@ Civic-Link follows a **Layered Architecture** pattern with clear separation of c
 ┌─────────────────────────────────────────────────────────────┐
 │                    API Layer (FastAPI)                       │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
-│  │  Telemetry  │ │   Commute   │ │        Match            │ │
-│  │   Endpoint  │ │  Endpoints  │ │      Endpoints          │ │
+│  │    Auth     │ │   Commute   │ │      Match / Score      │ │
+│  │  Endpoints  │ │  Endpoints  │ │       Endpoints         │ │
 │  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │           Exception Handlers (11 types)                 │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │         Rate Limiting Middleware (sliding window)       │ │
+│  └─────────────────────────────────────────────────────────┘ │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
@@ -18,6 +24,10 @@ Civic-Link follows a **Layered Architecture** pattern with clear separation of c
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
 │  │  Telemetry  │ │   Commute   │ │    MatchingService      │ │
 │  │   Service   │ │   Service   │ │  (Hard-Reject Logic)    │ │
+│  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
+│  │ CivicScore  │ │   Audit     │ │      User Service       │ │
+│  │  Service    │ │  Service    │ │                         │ │
 │  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -32,8 +42,8 @@ Civic-Link follows a **Layered Architecture** pattern with clear separation of c
 ┌────────────────────────▼────────────────────────────────────┐
 │                  Infrastructure Layer                       │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
-│  │  PostgreSQL │ │    Redis    │ │   Docker Containers     │ │
-│  │  + PostGIS  │ │    Cache    │ │                         │ │
+│  │  PostgreSQL │ │    Redis    │ │   Nginx (production)    │ │
+│  │  + PostGIS  │ │  (asyncio)  │ │   Reverse Proxy         │ │
 │  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -44,29 +54,43 @@ Civic-Link follows a **Layered Architecture** pattern with clear separation of c
 
 ### 1. API Layer (FastAPI)
 
-**Location:** `app/api/v1/endpoints/`
+**Location:** `app/api/v1/endpoints/`, `app/main.py`
 
 **Responsibilities:**
 - HTTP request/response handling
 - Input validation via Pydantic schemas
 - Authentication/Authorization (JWT tokens)
 - Background task orchestration (FastAPI BackgroundTasks)
-- Error handling and HTTP status codes
+- Global exception handling (11 custom exception types)
+- Rate limiting middleware (sliding window via Redis)
+- CORS configuration
 
 **Key Endpoints:**
-- `POST /api/v1/telemetry` - Submit 50Hz IMU data
-- `GET /api/v1/commutes` - Search available commutes
-- `POST /api/v1/matches` - Create driver-passenger matches
-- `GET /api/v1/civic-score` - Retrieve driver's civic score
+- `POST /api/v1/auth/register` — Zero-Liability registration
+- `POST /api/v1/auth/login/access-token` — JWT login
+- `POST /api/v1/auth/verify` — Account verification (placeholder)
+- `GET /api/v1/auth/me` — Current user profile
+- `POST /api/v1/telemetry` — Submit 50Hz IMU data
+- `GET /api/v1/commutes` — Search available commutes
+- `POST /api/v1/matches` — Create driver-passenger matches
+- `POST /api/v1/civic-score/ingest` — Telemetry ingestion
+- `GET /api/v1/civic-score/me` — Current civic score
+- `GET /health` — Health check
 
-**Design Pattern:** Dependency Injection
+**Lifespan Management:**
 ```python
-async def submit_telemetry(
-    request: TelemetryBatchRequest,
-    background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_db),
-) -> TelemetryBatchResponse:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()           # Database connection
+    # create_all() only in development
+    await init_redis()        # Redis connection pool
+    yield
+    await close_redis()
+    await close_db()
 ```
+
+**Exception Handlers:**
+All exceptions return structured JSON: `{error, code, request_id, detail?}`. The generic fallback handler logs full tracebacks but never exposes internals to clients.
 
 ---
 
@@ -161,26 +185,54 @@ postgresql+asyncpg://civic:civic_secret@postgres:5432/civic_link
 
 #### Redis
 
-**Purpose:** Caching and session management
+**Purpose:** Caching, rate limiting, and session management
+
+**Implementation:** `app/core/redis.py` — async client via `redis.asyncio`
+
+**Features:**
+- Lifespan-managed connection pool
+- Utility functions: `set_with_ttl()`, `get()`, `delete()`, `exists()`, `increment()`
+- Graceful degradation: returns `None`/`False` when unavailable
+- Health check key on startup (`redis:health` with 60s TTL)
 
 **Use Cases:**
+- Rate limiting (sliding window via sorted sets)
 - Active commute offers (15-minute TTL)
 - User session tokens
-- Swerve cooldown tracking (production deployment)
-- Rate limiting
+- Swerve cooldown tracking
 
 **Connection:**
 ```
 redis://redis:6379/0
 ```
 
+#### Nginx (Production)
+
+**Purpose:** Reverse proxy, TLS termination, security headers
+
+**Features:**
+- Gzip compression for JSON responses
+- Security headers: X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- Nginx-level rate limiting (complements application-level)
+- `/health` endpoint bypasses rate limiting
+- TLS configuration (commented template)
+
+**Configuration:** `nginx.conf`
+
 #### Docker
 
-**Services:**
-- `postgres` - PostGIS 16-3.4 database
-- `redis` - Redis 7-alpine cache
-- `api` - FastAPI application
-- `migrations` - Alembic database migrations
+**Development Services:**
+- `postgres` — PostGIS 16-3.4 database
+- `redis` — Redis 7-alpine cache
+- `api` — FastAPI application (hot reload)
+- `migrations` — Alembic database migrations (profile: migrations)
+
+**Production Services (`docker-compose.prod.yml`):**
+- `postgres` — No exposed ports, volume persistence
+- `redis` — appendonly, 128mb maxmemory, allkeys-lru
+- `api` — 4 workers, no hot reload, resource limits
+- `nginx` — Ports 80/443, security headers
+- `migrations` — Runs before API (condition: service_completed_successfully)
 
 ---
 
@@ -331,5 +383,5 @@ Every `CommuteMatch` stores:
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: April 12, 2026*
+*Document Version: 2.0*  
+*Last Updated: May 16, 2026*

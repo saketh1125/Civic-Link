@@ -4,6 +4,7 @@ Commute creation, listing, and management for drivers and passengers.
 """
 
 from typing import List
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.schemas.commute import (
     CommuteDetailResponse,
     CommuteOfferResponse,
     CommuteResponse,
+    CommuteSearchParams,
     CreateCommuteOfferRequest,
     CreateCommuteRequest,
 )
@@ -100,6 +102,64 @@ async def get_my_commutes(
     service = CommuteService(session)
     commutes = await service.get_active_commutes_for_driver(
         driver_id=str(current_user.id)
+    )
+
+    return [
+        CommuteResponse(
+            id=str(c.id),
+            driver_id=c.driver_id,
+            origin_address=c.origin_address,
+            destination_address=c.destination_address,
+            departure_date=c.departure_date,
+            departure_time=c.departure_time,
+            available_seats=c.available_seats,
+            total_seats=c.total_seats,
+            is_women_only=c.is_women_only,
+            commute_type=c.commute_type,
+            status=c.status,
+        )
+        for c in commutes
+    ]
+
+
+@router.get(
+    "/search",
+    response_model=List[CommuteResponse],
+    summary="Search for commutes",
+)
+async def search_commutes(
+    origin_query: str | None = None,
+    destination_query: str | None = None,
+    departure_date: date | None = None,
+    is_women_only: bool | None = None,
+    min_seats: int | None = None,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> List[CommuteResponse]:
+    """Search for active commutes matching criteria.
+
+    Excludes the requester's own commutes and cancelled/completed ones.
+
+    Args:
+        origin_query: Text search in origin address
+        destination_query: Text search in destination address
+        departure_date: Filter by departure date
+        is_women_only: Filter by women-only flag
+        min_seats: Minimum available seats required
+        session: Database session
+        current_user: Authenticated user
+
+    Returns:
+        List of matching commutes
+    """
+    service = CommuteService(session)
+    commutes = await service.search_commutes(
+        user_id=str(current_user.id),
+        origin_query=origin_query,
+        destination_query=destination_query,
+        departure_date=departure_date,
+        is_women_only=is_women_only,
+        min_seats=min_seats,
     )
 
     return [

@@ -60,9 +60,11 @@ Register a new user with Zero-Liability privacy. Email is hashed client-side.
   "gender": "male",
   "company_name": "TechCorp India",
   "role": "commuter",
-  "is_verified": true
+  "is_verified": false
 }
 ```
+
+**Note:** Newly registered users have `is_verified: false`. They must verify their account before accessing protected endpoints. See `POST /auth/verify`.
 
 **Whitelisted Domains:** `cmrcet.ac.in`, `company.com`, `govt.in`, `hyderabadpolice.gov.in`
 
@@ -89,6 +91,34 @@ Zero-Liability login. Only email_hash + domain transmitted.
   "expires_in": 3600
 }
 ```
+
+---
+
+#### POST /api/v1/auth/verify
+
+Verify a user account. Currently a placeholder — accepts the user's own ID as the verification token. In production, this will accept an email verification token.
+
+**Authentication:** Required (JWT Bearer token)
+
+**Request Body:**
+```json
+{
+  "token": "uuid-user-id"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "uuid-user-id",
+  "is_verified": true,
+  "message": "Account verified successfully"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid verification token
+- `401 Unauthorized`: Not authenticated
 
 ---
 

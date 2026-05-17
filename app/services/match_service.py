@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import Select
 
 from app.core.config import get_settings
-from app.core.exceptions import CivicLinkSafetyException, GeospatialConflictError
+from app.core.exceptions import CivicLinkSafetyException, GeospatialConflictError, InvalidStateTransitionError
 from app.models.audit import AuditEventType, AuditEventSeverity
 from app.models.commute import Commute, CommuteOffer, CommuteStatus
 from app.models.match import CommuteMatch, MatchStatus
@@ -228,6 +228,7 @@ class MatchingService:
             select(Commute)
             .where(Commute.id == commute_id)
             .options(selectinload(Commute.driver))
+            .with_for_update()
         )
         commute = commute_result.scalar_one_or_none()
 
@@ -236,6 +237,18 @@ class MatchingService:
 
         if commute.available_seats <= 0:
             raise GeospatialConflictError("Commute has no available seats")
+
+        existing_match = await self.session.execute(
+            select(CommuteMatch).where(
+                (CommuteMatch.commute_id == commute_id)
+                & (CommuteMatch.passenger_id == passenger_id)
+                & (CommuteMatch.status.in_([MatchStatus.PENDING, MatchStatus.CONFIRMED]))
+            )
+        )
+        if existing_match.scalar_one_or_none():
+            raise GeospatialConflictError(
+                f"Passenger {passenger_id} already has an active match for commute {commute_id}"
+            )
 
         passenger_result = await self.session.execute(
             select(User).where(User.id == passenger_id)
@@ -301,6 +314,12 @@ class MatchingService:
         if not match:
             raise GeospatialConflictError(f"Match {match_id} not found")
 
+        if match.status != MatchStatus.PENDING:
+            raise InvalidStateTransitionError(
+                current_state=match.status.value,
+                attempted="confirm",
+            )
+
         match.confirm()
         await self.session.flush()
 
@@ -309,6 +328,39 @@ class MatchingService:
             driver=match.driver,
             passenger=match.passenger,
             event_type=AuditEventType.MATCH_CONFIRMED,
+        )
+
+        return match
+
+    async def start_match(self, match_id: str) -> CommuteMatch:
+        result = await self.session.execute(
+            select(CommuteMatch)
+            .where(CommuteMatch.id == match_id)
+            .options(
+                selectinload(CommuteMatch.commute),
+                selectinload(CommuteMatch.driver),
+                selectinload(CommuteMatch.passenger),
+            )
+        )
+        match = result.scalar_one_or_none()
+
+        if not match:
+            raise GeospatialConflictError(f"Match {match_id} not found")
+
+        if match.status != MatchStatus.CONFIRMED:
+            raise InvalidStateTransitionError(
+                current_state=match.status.value,
+                attempted="start",
+            )
+
+        match.start()
+        await self.session.flush()
+
+        await self._log_audit(
+            match=match,
+            driver=match.driver,
+            passenger=match.passenger,
+            event_type=AuditEventType.MATCH_STARTED,
         )
 
         return match
@@ -327,6 +379,12 @@ class MatchingService:
 
         if not match:
             raise GeospatialConflictError(f"Match {match_id} not found")
+
+        if match.status not in (MatchStatus.PENDING, MatchStatus.CONFIRMED):
+            raise InvalidStateTransitionError(
+                current_state=match.status.value,
+                attempted="cancel",
+            )
 
         match.cancel()
 
@@ -361,6 +419,12 @@ class MatchingService:
 
         if not match:
             raise GeospatialConflictError(f"Match {match_id} not found")
+
+        if match.status != MatchStatus.IN_PROGRESS:
+            raise InvalidStateTransitionError(
+                current_state=match.status.value,
+                attempted="complete",
+            )
 
         match.complete()
 

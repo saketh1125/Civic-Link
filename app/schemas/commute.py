@@ -123,3 +123,23 @@ class CommuteDetailResponse(CommuteResponse):
     driver_name: str
     driver_gender: str
     driver_score: Optional[float] = None
+
+
+class CommuteSearchParams(BaseModel):
+    """Query parameters for searching commutes."""
+
+    origin_query: Optional[str] = Field(
+        None, description="Text search in origin address"
+    )
+    destination_query: Optional[str] = Field(
+        None, description="Text search in destination address"
+    )
+    departure_date: Optional[date] = Field(
+        None, description="Filter by departure date"
+    )
+    is_women_only: Optional[bool] = Field(
+        None, description="Filter by women-only flag"
+    )
+    min_seats: Optional[int] = Field(
+        None, ge=1, le=8, description="Minimum available seats required"
+    )

@@ -85,3 +85,15 @@ class RateLimitError(CivicLinkException):
 
     def __init__(self, message: str = "Rate limit exceeded") -> None:
         super().__init__(message, code="RATE_LIMIT_ERROR")
+
+
+class InvalidStateTransitionError(CivicLinkException):
+    """Exception for invalid state machine transitions."""
+
+    def __init__(self, current_state: str, attempted: str) -> None:
+        self.current_state = current_state
+        self.attempted = attempted
+        super().__init__(
+            f"Invalid state transition: {current_state} -> {attempted}",
+            code="INVALID_STATE_TRANSITION",
+        )

@@ -1,0 +1,72 @@
+name: PR Quality Gate
+
+# This workflow runs on every pull request to main.
+# It calls the backend and Flutter CI workflows, runs secret scanning,
+# and posts a summary comment to the PR.
+#
+# NOTE: Branch protection rules must be configured manually in GitHub Settings
+# to require all jobs below to pass before merging.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-ci:
+    uses: ./.github/workflows/backend-ci.yml
+    secrets: inherit
+
+  flutter-ci:
+    uses: ./.github/workflows/flutter-ci.yml
+    secrets: inherit
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan PR diff for obvious secret patterns
+        run: |
+          echo "Scanning for common secret patterns in PR diff..."
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          if git diff "origin/${{ github.base_ref }}...HEAD" -- . | \
+            grep -P -n '(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{32,}|-----BEGIN\s+(RSA\s+|EC\s+)?PRIVATE\s+KEY-----)'; then
+            echo "FAIL: Potential secrets found in diff above!"
+            exit 1
+          fi
+          echo "PASS: No obvious secrets detected"
+
+  summary:
+    needs: [backend-ci, flutter-ci, secret-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const backend = '${{ needs.backend-ci.result }}';
+            const flutter = '${{ needs.flutter-ci.result }}';
+            const secretScan = '${{ needs.secret-scan.result }}';
+
+            const summary = [
+              '## PR Quality Gate Summary',
+              '',
+              '| Check | Status |',
+              '|-------|--------|',
+              `| Backend CI | ${backend} |`,
+              `| Flutter CI | ${flutter} |`,
+              `| Secret Scan | ${secretScan} |`,
+              '',
+              'All jobs must pass before merging. Branch protection must be configured in GitHub Settings.'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

@@ -1,0 +1,82 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, ustable]
+  workflow_call:
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - run: pip install -r requirements.txt
+      - run: flake8 app/ tests/
+        env:
+          SECRET_KEY: ci-placeholder
+          AUDIT_LOG_ENCRYPTION_KEY: a
+          JWT_SECRET_KEY: a
+      - run: black --check app/ tests/
+        env:
+          SECRET_KEY: ci-placeholder
+          AUDIT_LOG_ENCRYPTION_KEY: a
+          JWT_SECRET_KEY: a
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: civic
+          POSTGRES_PASSWORD: civic_secret
+          POSTGRES_DB: civic_link
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://civic:civic_secret@localhost:5432/civic_link
+          SECRET_KEY: ci-placeholder
+          AUDIT_LOG_ENCRYPTION_KEY: a
+          JWT_SECRET_KEY: a
+      - run: PYTHONPATH=. pytest tests/test_safety_logic.py -v --tb=short --junitxml=pytest-results.xml
+        env:
+          DATABASE_URL: postgresql+asyncpg://civic:civic_secret@localhost:5432/civic_link
+          SECRET_KEY: ci-placeholder
+          AUDIT_LOG_ENCRYPTION_KEY: a
+          JWT_SECRET_KEY: a
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pytest-results
+          path: pytest-results.xml

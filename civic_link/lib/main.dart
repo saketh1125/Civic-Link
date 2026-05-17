@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'services/auth_service.dart';
 import 'providers/auth_provider.dart';
 import 'ui/screens/dashboard_screen.dart';
+import 'ui/screens/splash_screen.dart';
+import 'ui/screens/registration_screen.dart';
 
 // =============================================================================
 // APP-WIDE CONSTANTS
@@ -34,20 +36,16 @@ const kInputFill = Color(0xFF141428);
 
 /// Application entry point.
 ///
-/// Ensures Flutter binding is initialised, then checks for a stored
-/// authentication token to determine the initial route.
+/// Ensures Flutter binding is initialised, then launches the app
+/// with SplashScreen as the initial route.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final authService = AuthService(baseUrl: kBaseUrl);
-  final token = await authService.getAccessToken();
 
   runApp(
     ProviderScope(
-      child: MyApp(
-        isAuthenticated: token != null,
-        authService: authService,
-      ),
+      child: MyApp(authService: authService),
     ),
   );
 }
@@ -58,59 +56,17 @@ Future<void> main() async {
 
 /// Root [MaterialApp] wrapped in [ProviderScope].
 ///
-/// Routes to [DashboardScreen] if authenticated, otherwise [LoginScreen].
-class MyApp extends StatefulWidget {
-  /// Whether a valid auth token was found on startup.
-  final bool isAuthenticated;
+/// Starts with [SplashScreen] which handles auth check and routing.
+class MyApp extends StatelessWidget {
   final AuthService authService;
 
   const MyApp({
     super.key,
-    required this.isAuthenticated,
     required this.authService,
   });
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  bool _sessionRestored = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _restoreSession();
-  }
-
-  Future<void> _restoreSession() async {
-    if (widget.isAuthenticated) {
-      final userId = await widget.authService.getUserId();
-      final token = await widget.authService.getAccessToken();
-      if (userId != null && token != null) {
-        // Session is valid, proceed to dashboard
-      }
-    }
-    if (mounted) {
-      setState(() => _sessionRestored = true);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (!_sessionRestored) {
-      return MaterialApp(
-        title: 'Civic-Link',
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          backgroundColor: kPrimaryBlack,
-          body: Center(
-            child: CircularProgressIndicator(color: kAccentGreen),
-          ),
-        ),
-      );
-    }
-
     return MaterialApp(
       title: 'Civic-Link',
       debugShowCheckedModeBanner: false,
@@ -178,7 +134,7 @@ class _MyAppState extends State<MyApp> {
         ),
         dividerColor: Colors.white.withOpacity(0.08),
       ),
-      home: widget.isAuthenticated ? const DashboardScreen() : const LoginScreen(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -363,6 +319,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ---- Forgot Password ----
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Password reset coming soon.'),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'Forgot password?',
+                        style: TextStyle(
+                          color: kAccentGreen,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ---- Registration Link ----
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const RegistrationScreen(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "Don't have an account? Register",
+                        style: TextStyle(
+                          color: kAccentGreen,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ),
 

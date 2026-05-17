@@ -17,6 +17,10 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../providers/civic_score_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../main.dart';
+import 'commute_create_screen.dart';
+import 'commute_search_screen.dart';
+import 'my_commutes_screen.dart';
+import 'my_matches_screen.dart';
 
 // =============================================================================
 // DASHBOARD SCREEN
@@ -79,7 +83,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // Header
             _buildHeader(),
 
-            // Main Score Display (takes most space)
+            // Main Score Display
             Expanded(
               flex: 3,
               child: _buildScoreDisplay(scoreState),
@@ -91,7 +95,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: _buildChartSection(scoreState),
             ),
 
-            // Bottom padding for device mounts
+            // Quick Action Buttons
+            _buildQuickActions(context),
+
+            // Bottom padding
             const SizedBox(height: 20),
           ],
         ),
@@ -99,30 +106,44 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// Builds the screen header with title.
+  /// Builds the screen header with title and logout button.
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: kCivicScoreGreen,
-              borderRadius: BorderRadius.circular(4),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: kCivicScoreGreen,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'CIVIC SCORE',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2.0,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            'CIVIC SCORE',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 2.0,
-            ),
+          IconButton(
+            onPressed: () {
+              ref.read(authProvider.notifier).logout();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            icon: Icon(Icons.logout, color: kHintGrey, size: 22),
           ),
         ],
       ),
@@ -353,6 +374,102 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
         // Interaction: disabled for read-only dashboard
         lineTouchData: const LineTouchData(enabled: false),
+      ),
+    );
+  }
+
+  /// Builds quick action buttons below the chart.
+  Widget _buildQuickActions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        children: [
+          _buildActionButton(
+            context,
+            icon: Icons.search,
+            label: 'Find Ride',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const CommuteSearchScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          _buildActionButton(
+            context,
+            icon: Icons.add_road,
+            label: 'Offer Ride',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const CommuteCreateScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          _buildActionButton(
+            context,
+            icon: Icons.directions_car,
+            label: 'My Commutes',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const MyCommutesScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          _buildActionButton(
+            context,
+            icon: Icons.handshake,
+            label: 'My Matches',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const MyMatchesScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: kAccentGreen.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: kAccentGreen.withOpacity(0.2),
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: kAccentGreen, size: 24),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: kAccentGreen,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

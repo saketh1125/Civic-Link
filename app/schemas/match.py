@@ -22,6 +22,14 @@ class ConfirmMatchRequest(BaseModel):
     pass
 
 
+class CancelMatchRequest(BaseModel):
+    """Request model for cancelling a match."""
+
+    reason: Optional[str] = Field(
+        None, max_length=500, description="Reason for cancellation"
+    )
+
+
 class RateMatchRequest(BaseModel):
     """Request model for rating a completed match."""
 

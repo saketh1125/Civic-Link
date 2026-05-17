@@ -377,3 +377,48 @@ async def get_current_user_profile(
         role=current_user.role,
         is_verified=current_user.is_verified,
     )
+
+
+@router.put(
+    "/me",
+    response_model=UserResponse,
+    summary="Update current user profile",
+    description="Partially update the profile of the currently authenticated user. Only provided fields are updated.",
+)
+async def update_current_user_profile(
+    request: "UserProfileUpdate",
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> UserResponse:
+    """Update current authenticated user's profile (partial update).
+    
+    Only non-null fields in the request are updated.
+    
+    Args:
+        request: Profile fields to update
+        session: Database session
+        current_user: Authenticated user
+        
+    Returns:
+        Updated user data
+    """
+    from app.schemas.user import UserProfileUpdate
+    from app.services.user_service import UserService
+
+    service = UserService(session)
+    update_data = request.model_dump(exclude_unset=True)
+    user = await service.update_user_profile(
+        user_id=str(current_user.id),
+        **update_data,
+    )
+    await session.commit()
+
+    return UserResponse(
+        id=str(user.id),
+        email_domain=user.email_domain,
+        full_name=user.full_name,
+        gender=user.gender,
+        company_name=user.company_name,
+        role=user.role,
+        is_verified=user.is_verified,
+    )

@@ -246,3 +246,50 @@ class CommuteService:
         offer.status = "cancelled"
         await self.session.flush()
         return offer
+
+    async def search_commutes(
+        self,
+        user_id: str,
+        origin_query: Optional[str] = None,
+        destination_query: Optional[str] = None,
+        departure_date: Optional[date] = None,
+        is_women_only: Optional[bool] = None,
+        min_seats: Optional[int] = None,
+    ) -> List[Commute]:
+        """Search for active commutes matching criteria.
+
+        Excludes the requester's own commutes and cancelled/completed ones.
+
+        Args:
+            user_id: UUID of the searching user (to exclude own commutes)
+            origin_query: ILIKE search in origin address
+            destination_query: ILIKE search in destination address
+            departure_date: Filter by exact departure date
+            is_women_only: Filter by women-only flag
+            min_seats: Minimum available seats
+
+        Returns:
+            List of matching Commutes with driver loaded
+        """
+        query = (
+            select(Commute)
+            .where(Commute.driver_id != user_id)
+            .where(Commute.status == CommuteStatus.ACTIVE)
+            .options(selectinload(Commute.driver))
+        )
+
+        if origin_query:
+            query = query.where(Commute.origin_address.ilike(f"%{origin_query}%"))
+        if destination_query:
+            query = query.where(
+                Commute.destination_address.ilike(f"%{destination_query}%")
+            )
+        if departure_date:
+            query = query.where(Commute.departure_date == departure_date)
+        if is_women_only is not None:
+            query = query.where(Commute.is_women_only == is_women_only)
+        if min_seats is not None:
+            query = query.where(Commute.available_seats >= min_seats)
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())

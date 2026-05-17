@@ -15,16 +15,24 @@
 git clone <repository-url>
 cd Traffic-pooling
 
-# 2. Start containers
+# 2. Copy environment template and configure
+cp .env.example .env
+# Edit .env — set AUDIT_LOG_ENCRYPTION_KEY and JWT_SECRET_KEY
+# Generate keys: python3 -c "import secrets; print(secrets.token_hex(32))"
+
+# 3. Start containers
 docker compose up -d postgres redis
 
-# 3. Verify containers
+# 4. Verify containers
 docker compose ps
 
-# 4. Seed database
+# 5. Run Alembic migrations
+docker compose run --rm api alembic upgrade head
+
+# 6. Seed database
 docker compose exec api python app/seed_kphb.py
 
-# 5. Run safety tests
+# 7. Run safety tests
 docker compose exec api python app/safety_stress_test.py
 ```
 
@@ -36,41 +44,54 @@ docker compose exec api python app/safety_stress_test.py
 Traffic-pooling/
 ├── app/
 │   ├── api/
+│   │   ├── deps.py                   # Auth dependencies
 │   │   └── v1/
-│   │       ├── api.py              # API router configuration
+│   │       ├── api.py                # API router configuration
 │   │       └── endpoints/
-│   │           ├── telemetry.py    # IMU data endpoint
-│   │           ├── commutes.py     # Commute endpoints
-│   │           └── matches.py      # Match endpoints
+│   │           ├── auth.py           # Registration, login, verify
+│   │           ├── telemetry.py      # IMU data endpoint
+│   │           ├── commutes.py       # Commute endpoints
+│   │           ├── matches.py        # Match endpoints
+│   │           └── civic_score.py    # Civic score endpoints
 │   ├── core/
-│   │   ├── config.py               # Pydantic settings
-│   │   ├── database.py             # AsyncSession factory
-│   │   ├── security.py             # JWT & encryption
-│   │   └── exceptions.py           # Custom exceptions
+│   │   ├── config.py                 # Pydantic settings
+│   │   ├── database.py               # AsyncSession factory
+│   │   ├── security.py               # JWT & encryption
+│   │   ├── exceptions.py             # Custom exceptions
+│   │   └── redis.py                  # Async Redis client
+│   ├── middleware/
+│   │   ├── __init__.py
+│   │   └── rate_limit.py             # Sliding window rate limiter
 │   ├── models/
-│   │   ├── user.py                 # User model
-│   │   ├── commute.py              # Commute & CommuteOffer models
-│   │   └── match.py                # CommuteMatch model
-│   ├── schemas/
-│   │   ├── telemetry.py            # Pydantic schemas
-│   │   ├── commute.py              # Request/response schemas
-│   │   └── match.py                # Match schemas
-│   ├── services/
-│   │   ├── match_service.py        # Matching logic
-│   │   ├── telemetry_service.py    # IMU processing
-│   │   └── commute_service.py      # Commute CRUD
-│   ├── seed_kphb.py                # Database seeding
-│   ├── safety_stress_test.py       # Safety validation
-│   └── main.py                     # FastAPI entry point
+│   │   ├── base.py                   # BaseModel (id, timestamps)
+│   │   ├── user.py                   # User model
+│   │   ├── commute.py                # Commute & CommuteOffer models
+│   │   ├── match.py                  # CommuteMatch model
+│   │   ├── civic_score.py            # CivicScore & History
+│   │   ├── audit.py                  # CommuteAuditLog & SafetyAlertLog
+│   │   └── __init__.py               # Model exports
+│   ├── schemas/                      # Pydantic request/response
+│   ├── services/                     # Business logic
+│   ├── seed_kphb.py                  # Database seeding
+│   ├── safety_stress_test.py         # Safety validation
+│   └── main.py                       # FastAPI entry point
+├── migrations/
+│   ├── env.py                        # Alembic async environment
+│   └── versions/
+│       └── e14fe2c5ae57_initial_schema.py
 ├── docker/
 │   ├── postgres/
 │   └── redis/
-├── documentation/                  # Project docs (this folder)
-├── tests/                          # Test suite
-├── docker-compose.yml              # Container orchestration
-├── requirements.txt                # Python dependencies
-├── pyproject.toml                  # Project metadata
-└── .env                            # Environment variables
+├── documentation/                    # Project docs (this folder)
+├── tests/                            # Test suite
+├── nginx.conf                        # Production Nginx config
+├── docker-compose.yml                # Development orchestration
+├── docker-compose.prod.yml           # Production orchestration
+├── Dockerfile                        # Multi-stage build
+├── alembic.ini                       # Alembic configuration
+├── requirements.txt                  # Python dependencies
+├── pyproject.toml                    # Project metadata
+└── .env                              # Environment variables
 ```
 
 ---
@@ -113,7 +134,9 @@ git push origin feature/my-new-feature
 - [ ] Code follows project structure
 - [ ] All tests pass
 - [ ] Safety logic is enforced at database level
-- [ ] No hardcoded credentials
+- [ ] No hardcoded credentials or secrets
+- [ ] Match events generate audit log entries
+- [ ] Verification status checked for protected endpoints
 - [ ] Documentation updated
 - [ ] Git commit message follows convention
 
@@ -257,31 +280,50 @@ venv\Scripts\activate     # Windows
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Set environment variables
-export DATABASE_URL="postgresql+asyncpg://civic:civic_secret@localhost:5432/civic_link"
-export REDIS_URL="redis://localhost:6379/0"
-export AUDIT_LOG_ENCRYPTION_KEY="your-secret-key"
+# 3. Copy environment template
+cp .env.example .env
 
-# 4. Run migrations
+# 4. Generate required secrets
+python3 -c "import secrets; print('AUDIT_LOG_ENCRYPTION_KEY=' + secrets.token_hex(32))"
+python3 -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_hex(32))"
+
+# 5. Edit .env — set AUDIT_LOG_ENCRYPTION_KEY, JWT_SECRET_KEY, and SECRET_KEY
+#    These are REQUIRED — the application will refuse to start without them.
+
+# 6. Run migrations
 alembic upgrade head
 
-# 5. Start API
+# 7. Start API
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+**Required Environment Variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SECRET_KEY` | Yes | Application secret key |
+| `AUDIT_LOG_ENCRYPTION_KEY` | Yes | 32-byte hex key for AES-256-GCM audit encryption |
+| `JWT_SECRET_KEY` | Yes | 32-byte hex key for JWT signing |
+| `DATABASE_URL` | No | Defaults to `postgresql+asyncpg://civic:civic_secret@localhost:5432/civic_link` |
+| `REDIS_URL` | No | Defaults to `redis://localhost:6379/0` |
 
 ### Using Docker (Recommended)
 
 ```bash
-# Start all services
+# 1. Copy and configure environment
+cp .env.example .env
+# Edit .env — set AUDIT_LOG_ENCRYPTION_KEY and JWT_SECRET_KEY
+
+# 2. Start all services
 docker compose up -d
 
-# View logs
+# 3. View logs
 docker compose logs -f api
 
-# Stop
+# 4. Stop
 docker compose down
 
-# Reset (remove volumes)
+# 5. Reset (remove volumes)
 docker compose down -v
 docker compose up -d
 ```
@@ -290,66 +332,46 @@ docker compose up -d
 
 ## Database Migrations
 
+### Overview
+
+Civic-Link uses **Alembic** for database migrations. The `create_all()` approach is gated to development only — production relies exclusively on Alembic.
+
+**Initial migration:** `e14fe2c5ae57_initial_schema.py` — creates all 8 tables and 9 enum types.
+
 ### Create Migration
 
 ```bash
 # Auto-generate from model changes
-docker compose run --rm migrations alembic revision --autogenerate -m "add new field"
+docker compose run --rm api alembic revision --autogenerate -m "add new field"
 
 # Manual migration
-docker compose run --rm migrations alembic revision -m "manual change"
+docker compose run --rm api alembic revision -m "manual change"
 ```
 
 ### Apply Migrations
 
 ```bash
 # Upgrade to latest
-docker compose run --rm migrations alembic upgrade head
+docker compose run --rm api alembic upgrade head
 
 # Upgrade specific
-docker compose run --rm migrations alembic upgrade +1
+docker compose run --rm api alembic upgrade +1
 
 # Downgrade
-docker compose run --rm migrations alembic downgrade -1
+docker compose run --rm api alembic downgrade -1
+
+# Round-trip test
+docker compose run --rm api alembic downgrade -1 && docker compose run --rm api alembic upgrade head
 ```
 
-### Migration File Structure
+### Migration Environment
 
-```python
-"""add women_only flag
+**File:** `migrations/env.py`
 
-Revision ID: 20240415_001
-Revises: previous_revision
-Create Date: 2026-04-15 10:00:00.000000
-
-"""
-from alembic import op
-import sqlalchemy as sa
-
-# revision identifiers
-revision = '20240415_001'
-down_revision = 'previous_revision'
-branch_labels = None
-depends_on = None
-
-def upgrade() -> None:
-    # Add column
-    op.add_column(
-        'commutes',
-        sa.Column('is_women_only', sa.Boolean(), nullable=False, server_default='false')
-    )
-    
-    # Add index
-    op.create_index(
-        'idx_commutes_is_women_only',
-        'commutes',
-        ['is_women_only']
-    )
-
-def downgrade() -> None:
-    op.drop_index('idx_commutes_is_women_only', table_name='commutes')
-    op.drop_column('commutes', 'is_women_only')
-```
+- Async engine via `async_engine_from_config`
+- Reads `DATABASE_URL` from environment (overrides `alembic.ini`)
+- Filters out PostGIS extension tables (tiger, topology, spatial_ref_sys)
+- Supports both online and offline migration modes
 
 ---
 
@@ -451,6 +473,9 @@ docker stats
 
 ### Common Issues
 
+**Issue:** `pydantic_core._pydantic_core.ValidationError: field required` on startup
+**Fix:** Set `SECRET_KEY`, `AUDIT_LOG_ENCRYPTION_KEY`, and `JWT_SECRET_KEY` in `.env`. These are now required with no defaults.
+
 **Issue:** `ModuleNotFoundError: No module named 'geoalchemy2'`
 **Fix:** Run scripts inside Docker container where dependencies are installed
 
@@ -459,6 +484,15 @@ docker stats
 
 **Issue:** Database connection refused
 **Fix:** Wait for postgres to be healthy: `docker compose up -d postgres && sleep 5`
+
+**Issue:** `relation "xxx" already exists` during `alembic upgrade head`
+**Fix:** The database was created by `create_all()`. Drop tables first: `docker compose down -v && docker compose up -d postgres`, then run `alembic upgrade head`.
+
+**Issue:** Rate limiting not working
+**Fix:** Ensure Redis container is running. Check logs: `docker compose logs api | grep -i rate`. Rate limiting gracefully degrades if Redis is unavailable.
+
+**Issue:** API starts but Redis health check fails
+**Fix:** This is expected behavior — the API continues without Redis. Check Redis logs: `docker compose logs redis`.
 
 ---
 
@@ -509,6 +543,187 @@ Brief description of changes
 
 ---
 
+## Redis Usage
+
+### Client API
+
+```python
+from app.core.redis import (
+    get_redis_client,
+    set_with_ttl,
+    get,
+    delete,
+    exists,
+    increment,
+)
+
+# Get raw Redis client
+redis = get_redis_client()
+if redis:
+    await redis.set("key", "value")
+
+# Utility functions (graceful degradation)
+await set_with_ttl("session:abc", "data", ttl_seconds=3600)
+value = await get("session:abc")
+await delete("session:abc")
+key_exists = await exists("session:abc")
+count = await increment("ratelimit:user:123", ttl_seconds=60)
+```
+
+### FastAPI Dependency
+
+```python
+from fastapi import Depends
+from app.core.redis import get_redis
+
+@app.get("/cached-data")
+async def get_cached_data(redis = Depends(get_redis)):
+    if redis is None:
+        return {"error": "Redis unavailable"}
+    data = await redis.get("my_key")
+    return {"data": data}
+```
+
+### Graceful Degradation
+
+All Redis operations return `None`/`False` when Redis is unavailable — they never raise exceptions. The API continues to function without caching or rate limiting.
+
+---
+
+## Rate Limiting
+
+### Configuration
+
+Rate limits are defined in `app/middleware/rate_limit.py`:
+
+| Endpoint | Limit | Window | Key |
+|----------|-------|--------|-----|
+| `/api/v1/auth/login` | 10 req/min | 60s | IP address |
+| `/api/v1/auth/register` | 5 req/min | 60s | IP address |
+| `/api/v1/civic-score/ingest` | 30 req/min | 60s | User ID |
+| `/api/v1/*` (other) | 120 req/min | 60s | User ID |
+
+### Response on Limit Exceeded
+
+```json
+{
+  "error": "RATE_LIMIT_EXCEEDED",
+  "retry_after_seconds": 45
+}
+```
+
+HTTP status: `429 Too Many Requests`
+Header: `Retry-After: 45`
+
+### Exempt Paths
+
+The following paths are never rate limited:
+- `/health`
+- `/docs`
+- `/redoc`
+- `/openapi.json`
+- `/`
+
+---
+
+## Exception Handling
+
+### Structured Error Response
+
+All exceptions return a consistent JSON format:
+
+```json
+{
+  "error": "User not found",
+  "code": "USER_NOT_FOUND",
+  "request_id": "uuid-4-uuid-4-uuid",
+  "detail": "optional detail string"
+}
+```
+
+### Exception → Status Code Mapping
+
+| Exception | Status Code |
+|-----------|-------------|
+| `CivicLinkSafetyException` | 400 |
+| `ValidationError` | 422 |
+| `AuthenticationError` | 401 |
+| `AuthorizationError` | 403 |
+| `UserNotFoundError` | 404 |
+| `CommuteNotFoundError` | 404 |
+| `MatchNotFoundError` | 404 |
+| `GeospatialConflictError` | 409 |
+| `RateLimitError` | 429 |
+| `AuditLogError` | 500 |
+| `Exception` (fallback) | 500 |
+
+The generic `Exception` handler logs the full traceback via `logger.exception()` but never exposes internal details to the client.
+
+---
+
+## Production Deployment
+
+### Prerequisites
+
+- `.env.production` file with all required secrets
+- TLS certificates (optional, for HTTPS)
+- Domain name pointing to server IP
+
+### Deploy
+
+```bash
+# 1. Prepare environment
+cp .env.example .env.production
+# Edit .env.production with production values
+
+# 2. (Optional) Place TLS certificates
+mkdir -p ssl
+cp fullchain.pem ssl/
+cp privkey.pem ssl/
+# Uncomment TLS section in nginx.conf
+
+# 3. Deploy
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+
+# 4. Verify
+docker compose -f docker-compose.prod.yml ps
+curl https://your-domain/health
+```
+
+### Service Architecture (Production)
+
+```
+Internet → Nginx (80/443) → API (internal:8000)
+                                    ↓
+                              PostgreSQL (internal)
+                              Redis (internal)
+```
+
+- PostgreSQL and Redis have **no exposed ports** — accessible only by API
+- Nginx handles TLS, gzip compression, security headers, and rate limiting
+- Migrations run automatically before API starts via the `migrations` service
+
+### Resource Limits
+
+| Service | Memory | CPU |
+|---------|--------|-----|
+| API | 512 MB | 0.5 |
+| PostgreSQL | 1 GB | 1.0 |
+| Redis | 256 MB | 0.25 |
+| Nginx | 128 MB | 0.25 |
+
+### Updating
+
+```bash
+# 1. Pull latest code
+git pull origin main
+
+# 2. Rebuild and redeploy
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+
+---
+
 ## Release Process
 
 ### Version Numbering
@@ -523,13 +738,14 @@ Follow Semantic Versioning: `MAJOR.MINOR.PATCH`
 
 1. [ ] All tests pass
 2. [ ] Safety stress test passes
-3. [ ] Documentation updated
-4. [ ] CHANGELOG.md updated
-5. [ ] Version bumped in `pyproject.toml`
-6. [ ] Git tag created: `git tag -a v1.0.0 -m "Release v1.0.0"`
-7. [ ] Tag pushed: `git push origin v1.0.0`
+3. [ ] Alembic migration round-trip verified
+4. [ ] Documentation updated
+5. [ ] CHANGELOG.md updated
+6. [ ] Version bumped in `pyproject.toml`
+7. [ ] Git tag created: `git tag -a v1.0.0 -m "Release v1.0.0"`
+8. [ ] Tag pushed: `git push origin v1.0.0`
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: April 15, 2026*
+*Document Version: 2.0*  
+*Last Updated: May 16, 2026*

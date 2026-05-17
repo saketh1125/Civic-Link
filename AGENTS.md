@@ -18,20 +18,33 @@
 ### Docker
 - `docker compose up` — starts Postgres (PostGIS 16-3.4), Redis 7, API on port 8000
 - `docker compose --profile migrations up` — runs Alembic migrations
-- `.env` controls credentials; defaults in `docker-compose.yml`
+- `docker compose -f docker-compose.prod.yml --env-file .env.production up -d` — production deploy
+- `.env` controls credentials; `SECRET_KEY`, `AUDIT_LOG_ENCRYPTION_KEY`, `JWT_SECRET_KEY` are REQUIRED (no defaults)
 
 ### Key Directories
 - `app/api/v1/endpoints/` — `auth.py`, `telemetry.py`, `commutes.py`, `matches.py`, `civic_score.py`
 - `app/services/` — `match_service.py` (hard-reject SQL safety), `telemetry_service.py`, `commute_service.py`, `user_service.py`, `civic_score_service.py`, `audit_service.py`
 - `app/models/` — SQLAlchemy 2.0 ORM: `user.py`, `commute.py`, `match.py`, `civic_score.py`, `audit.py`
 - `app/schemas/` — Pydantic request/response models: `user.py`, `commute.py`, `match.py`
-- `app/core/` — `config.py`, `database.py`, `security.py`, `exceptions.py`
+- `app/core/` — `config.py`, `database.py`, `security.py`, `exceptions.py`, `redis.py`
+- `app/middleware/` — `rate_limit.py` (sliding window rate limiter)
 
 ### Empty Stubs (not yet implemented)
-- `app/core/redis.py` — empty
 - `app/core/logging_config.py` — empty
-- `app/migrations/` — directory does not exist; `alembic.ini` exists at root but no migration versions
 - `tests/factories.py`, `tests/test_commutes.py`, `tests/test_matches.py`, `tests/test_users.py` — all empty
+
+### Migrations
+- `migrations/env.py` — async Alembic environment with PostGIS filtering
+- `migrations/versions/e14fe2c5ae57_initial_schema.py` — initial migration (8 tables, 9 enums)
+- `create_all()` runs only in development — production uses `alembic upgrade head`
+- `DATABASE_URL` read dynamically from environment (not hardcoded in alembic.ini)
+
+### Redis
+- `app/core/redis.py` — async client via `redis.asyncio`
+- Lifespan-managed connection pool (initialized at startup, closed on shutdown)
+- Utility functions: `set_with_ttl()`, `get()`, `delete()`, `exists()`, `increment()`
+- Graceful degradation: returns `None`/`False` when unavailable — never crashes the API
+- Rate limiting middleware uses Redis sorted sets for sliding window
 
 ### Safety Logic (CRITICAL)
 - `app/services/match_service.py:68-99` — SQL-level hard-reject gender filtering

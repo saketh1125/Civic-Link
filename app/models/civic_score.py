@@ -46,6 +46,21 @@ class CivicScore(BaseModel):
 
     __tablename__ = "civic_scores"
 
+    def __init__(self, **kwargs):
+        """Set Python-level defaults for direct instantiation (tests)."""
+        kwargs.setdefault("score", 100.0)
+        kwargs.setdefault("total_trips", 0)
+        kwargs.setdefault("total_distance_km", 0.0)
+        kwargs.setdefault("total_driving_hours", 0.0)
+        kwargs.setdefault("swerve_count", 0)
+        kwargs.setdefault("speeding_count", 0)
+        kwargs.setdefault("hard_braking_count", 0)
+        kwargs.setdefault("rapid_acceleration_count", 0)
+        kwargs.setdefault("swerve_penalty", 0.0)
+        kwargs.setdefault("speeding_penalty", 0.0)
+        kwargs.setdefault("calculation_version", "1.0")
+        super().__init__(**kwargs)
+
     # User Relationship
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
