@@ -13,8 +13,11 @@ import 'ui/screens/registration_screen.dart';
 // =============================================================================
 
 /// Base URL for the Civic-Link backend API.
-/// 10.0.2.2 = Android emulator loopback to host machine.
-const kBaseUrl = 'http://192.168.1.9:8000';
+/// Override at build time: `flutter run --dart-define=BASE_URL=https://api.example.com`
+const kBaseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://192.168.1.9:8000',
+);
 
 /// Deep black — primary surface colour.
 const kPrimaryBlack = Color(0xFF0A0A0A);
@@ -374,9 +377,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Center(
                     child: GestureDetector(
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Password reset coming soon.'),
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: kSecondaryGrey,
+                            title: const Text('Reset Password',
+                                style: TextStyle(color: Colors.white)),
+                            content: const Text(
+                              'Password reset requires email verification. '
+                              'Please contact your HR administrator or '
+                              'use the "Change Password" option in Settings '
+                              'if you know your current password.',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: Text('OK',
+                                    style: TextStyle(color: kAccentGreen)),
+                              ),
+                            ],
                           ),
                         );
                       },

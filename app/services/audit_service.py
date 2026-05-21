@@ -5,6 +5,7 @@ Encrypted audit logging for commute matches and safety events.
 
 import base64
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 

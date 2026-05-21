@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../widgets/auth_guard.dart';
+import 'change_password_screen.dart';
 import 'profile_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -173,8 +174,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon: Icons.lock_outline,
               title: 'Change Password',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon')),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const ChangePasswordScreen()),
                 );
               },
             ),

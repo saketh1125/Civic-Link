@@ -32,6 +32,14 @@ class _CommuteCreateScreenState extends ConsumerState<CommuteCreateScreen> {
   bool _isWomenOnly = false;
   bool _isRecurring = false;
 
+  // Resolved coordinates
+  double? _originLat;
+  double? _originLon;
+  double? _destLat;
+  double? _destLon;
+  bool _isGeocodingOrigin = false;
+  bool _isGeocodingDest = false;
+
   @override
   void dispose() {
     _originController.dispose();
@@ -74,8 +82,63 @@ class _CommuteCreateScreenState extends ConsumerState<CommuteCreateScreen> {
     if (picked != null) setState(() => _selectedTime = picked);
   }
 
+  Future<void> _geocodeOrigin() async {
+    final address = _originController.text.trim();
+    if (address.isEmpty) return;
+    setState(() => _isGeocodingOrigin = true);
+    final coords =
+        await ref.read(commuteProvider.notifier).geocodeAddress(address);
+    if (mounted) {
+      setState(() {
+        _isGeocodingOrigin = false;
+        if (coords != null) {
+          _originLat = coords[0];
+          _originLon = coords[1];
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not find origin location')),
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _geocodeDest() async {
+    final address = _destinationController.text.trim();
+    if (address.isEmpty) return;
+    setState(() => _isGeocodingDest = true);
+    final coords =
+        await ref.read(commuteProvider.notifier).geocodeAddress(address);
+    if (mounted) {
+      setState(() {
+        _isGeocodingDest = false;
+        if (coords != null) {
+          _destLat = coords[0];
+          _destLon = coords[1];
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Could not find destination location')),
+          );
+        }
+      });
+    }
+  }
+
   Future<void> _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Auto-geocode if not yet resolved
+    if (_originLat == null) await _geocodeOrigin();
+    if (_destLat == null) await _geocodeDest();
+
+    if (_originLat == null || _destLat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Could not resolve locations. Check addresses.')),
+      );
+      return;
+    }
 
     final dateStr =
         '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
@@ -85,6 +148,10 @@ class _CommuteCreateScreenState extends ConsumerState<CommuteCreateScreen> {
     final success = await ref.read(commuteProvider.notifier).createCommute(
           originAddress: _originController.text.trim(),
           destinationAddress: _destinationController.text.trim(),
+          originLat: _originLat!,
+          originLon: _originLon!,
+          destLat: _destLat!,
+          destLon: _destLon!,
           departureDate: dateStr,
           departureTime: timeStr,
           availableSeats: _availableSeats,
@@ -150,11 +217,39 @@ class _CommuteCreateScreenState extends ConsumerState<CommuteCreateScreen> {
                       prefixIcon:
                           const Icon(Icons.location_on, color: kHintGrey),
                       hintText: 'e.g. KPHB Phase 3, Hyderabad',
+                      suffixIcon: _isGeocodingOrigin
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: kAccentGreen),
+                              ),
+                            )
+                          : _originLat != null
+                              ? Icon(Icons.check_circle, color: kAccentGreen)
+                              : IconButton(
+                                  icon: Icon(Icons.search,
+                                      color: kAccentGreen),
+                                  onPressed: _geocodeOrigin,
+                                  tooltip: 'Locate',
+                                ),
                     ),
                     validator: (v) => v == null || v.trim().isEmpty
                         ? 'Origin is required'
                         : null,
                   ),
+                  if (_originLat != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 12),
+                      child: Text(
+                        '${_originLat!.toStringAsFixed(4)}, ${_originLon!.toStringAsFixed(4)}',
+                        style: TextStyle(
+                            color: kAccentGreen.withOpacity(0.7),
+                            fontSize: 11),
+                      ),
+                    ),
                   const SizedBox(height: 16),
 
                   // Destination
@@ -167,11 +262,39 @@ class _CommuteCreateScreenState extends ConsumerState<CommuteCreateScreen> {
                       prefixIcon:
                           const Icon(Icons.location_on, color: kAccentGreen),
                       hintText: 'e.g. Mindspace, HITEC City',
+                      suffixIcon: _isGeocodingDest
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: kAccentGreen),
+                              ),
+                            )
+                          : _destLat != null
+                              ? Icon(Icons.check_circle, color: kAccentGreen)
+                              : IconButton(
+                                  icon: Icon(Icons.search,
+                                      color: kAccentGreen),
+                                  onPressed: _geocodeDest,
+                                  tooltip: 'Locate',
+                                ),
                     ),
                     validator: (v) => v == null || v.trim().isEmpty
                         ? 'Destination is required'
                         : null,
                   ),
+                  if (_destLat != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 12),
+                      child: Text(
+                        '${_destLat!.toStringAsFixed(4)}, ${_destLon!.toStringAsFixed(4)}',
+                        style: TextStyle(
+                            color: kAccentGreen.withOpacity(0.7),
+                            fontSize: 11),
+                      ),
+                    ),
                   const SizedBox(height: 16),
 
                   // Date & Time row

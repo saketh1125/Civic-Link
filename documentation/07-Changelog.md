@@ -12,10 +12,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Real-time WebSocket updates
 - Load testing and performance optimization
 - Real email verification flow (replace placeholder token)
-- `GET /commutes/search` backend endpoint (currently stubbed with `GET /commutes/my`)
-- `PUT /auth/me` endpoint for profile editing
 - `go_router` migration for named routes
-- Maps integration for commute coordinate picker
+- Push notifications
+
+---
+
+## [0.5.0] - 2026-05-17
+
+### Backend — New Endpoints & Fixes
+
+#### Added
+- `POST /auth/change-password` — change password with current password verification
+- `GET /commutes/offers/my` — get passenger's ride requests
+- `migrations/versions/a3b8c2d1e5f6` — adds `token_refreshed` to audit_event_type_enum
+
+#### Fixed
+- `app/services/audit_service.py` — added missing `import os` (prevented `NameError` crash on audit encryption)
+- Downgraded `bcrypt` from 5.0.0 to 4.0.1 to fix passlib 1.7.4 incompatibility
+
+### Flutter UI — Phase 4 Screens & Fixes
+
+#### Added
+- `ChangePasswordScreen` — current password verification, new password + confirm fields
+- `CommuteOffer` model in `commute_provider.dart` — for passenger ride requests
+- `fetchMyOffers()` method — fetches passenger's ride requests from `GET /commutes/offers/my`
+- `geocodeAddress()` method — Nominatim geocoding (free, no API key) for commute creation
+- "My Requests" tab in `MyCommutesScreen` — now shows real passenger offers instead of placeholder
+- "Locate" buttons on origin/destination fields in `CommuteCreateScreen` — resolves addresses to coordinates
+- Password reset dialog in `LoginScreen` — explains to contact HR or use Change Password in Settings
+
+#### Changed
+- `commute_provider.dart` — `createCommute()` now accepts `originLat/originLon/destLat/destLon` parameters (no more hardcoded coordinates)
+- `main.dart` — `kBaseUrl` now uses `--dart-define=BASE_URL=...` for environment-based configuration
+- `settings_screen.dart` — Change Password now navigates to `ChangePasswordScreen`
+- Verification status in settings reads from `profileProvider`
+
+#### Removed
+- Hardcoded Hyderabad coordinates from `createCommute()`
+- "Coming soon" snackbar from Change Password tile
+- Placeholder "My Requests" tab content
+
+### Tests
+- All 75 backend tests passing
+- All Flutter screens pass `flutter analyze` with 0 errors
 
 ---
 

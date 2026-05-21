@@ -103,24 +103,66 @@ class CommuteDetail extends Commute {
 // STATE
 // =============================================================================
 
+class CommuteOffer {
+  final String id;
+  final String passengerId;
+  final String originAddress;
+  final String destinationAddress;
+  final String preferredDepartureDate;
+  final String preferredDepartureTime;
+  final bool isWomenOnly;
+  final int maxWalkingDistance;
+  final String status;
+
+  const CommuteOffer({
+    required this.id,
+    required this.passengerId,
+    required this.originAddress,
+    required this.destinationAddress,
+    required this.preferredDepartureDate,
+    required this.preferredDepartureTime,
+    required this.isWomenOnly,
+    required this.maxWalkingDistance,
+    required this.status,
+  });
+
+  factory CommuteOffer.fromJson(Map<String, dynamic> json) {
+    return CommuteOffer(
+      id: json['id'] as String,
+      passengerId: json['passenger_id'] as String,
+      originAddress: json['origin_address'] as String,
+      destinationAddress: json['destination_address'] as String,
+      preferredDepartureDate: json['preferred_departure_date'] as String,
+      preferredDepartureTime: json['preferred_departure_time'] as String,
+      isWomenOnly: json['is_women_only'] as bool,
+      maxWalkingDistance: json['max_walking_distance'] as int,
+      status: json['status'] as String,
+    );
+  }
+}
+
 class CommuteState {
   final List<Commute> commutes;
+  final List<CommuteOffer> offers;
   final bool isLoading;
   final String? error;
 
   const CommuteState({
     this.commutes = const [],
+    this.offers = const [],
     this.isLoading = false,
     this.error,
   });
 
   CommuteState copyWith({
     List<Commute>? commutes,
+    List<CommuteOffer>? offers,
     bool? isLoading,
     String? error,
   }) {
     return CommuteState(
       commutes: commutes ?? this.commutes,
+      offers: offers ?? this.offers,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -173,6 +215,25 @@ class CommuteNotifier extends Notifier<CommuteState> {
     }
   }
 
+  Future<void> fetchMyOffers() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final response = await _dio.get('/api/v1/commutes/offers/my');
+      final List<dynamic> data = response.data as List;
+      final offers = data.map((j) => CommuteOffer.fromJson(j)).toList();
+      state = state.copyWith(offers: offers, isLoading: false);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        _handle401();
+        return;
+      }
+      state = state.copyWith(
+        isLoading: false,
+        error: _extractError(e),
+      );
+    }
+  }
+
   Future<CommuteDetail?> fetchCommuteDetail(String id) async {
     try {
       final response = await _dio.get('/api/v1/commutes/$id');
@@ -187,9 +248,38 @@ class CommuteNotifier extends Notifier<CommuteState> {
     }
   }
 
+  /// Geocode an address to lat/lon using Nominatim (free, no API key).
+  /// Returns [lat, lon] or null if not found.
+  Future<List<double>?> geocodeAddress(String address) async {
+    try {
+      final response = await Dio().get(
+        'https://nominatim.openstreetmap.org/search',
+        queryParameters: {
+          'q': address,
+          'format': 'json',
+          'limit': 1,
+        },
+        options: Options(headers: {
+          'User-Agent': 'civic-link/1.0 (carpooling app)',
+        }),
+      );
+      final List data = response.data;
+      if (data.isEmpty) return null;
+      final lat = double.parse(data[0]['lat']);
+      final lon = double.parse(data[0]['lon']);
+      return [lat, lon];
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<bool> createCommute({
     required String originAddress,
     required String destinationAddress,
+    required double originLat,
+    required double originLon,
+    required double destLat,
+    required double destLon,
     required String departureDate,
     required String departureTime,
     required int availableSeats,
@@ -199,13 +289,11 @@ class CommuteNotifier extends Notifier<CommuteState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // Using hardcoded Hyderabad coordinates as placeholder
-      // TODO: Replace with actual map picker coordinates
       await _dio.post('/api/v1/commutes', data: {
-        'origin_lat': 17.4930,
-        'origin_lon': 78.4020,
-        'destination_lat': 17.4430,
-        'destination_lon': 78.3770,
+        'origin_lat': originLat,
+        'origin_lon': originLon,
+        'destination_lat': destLat,
+        'destination_lon': destLon,
         'origin_address': originAddress,
         'destination_address': destinationAddress,
         'departure_date': departureDate,

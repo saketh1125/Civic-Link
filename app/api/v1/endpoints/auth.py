@@ -523,3 +523,49 @@ async def update_current_user_profile(
         role=user.role,
         is_verified=user.is_verified,
     )
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request model for changing password."""
+
+    current_password: str = Field(
+        ...,
+        description="Current password",
+    )
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        description="New password (min 8 characters)",
+    )
+
+
+class ChangePasswordResponse(BaseModel):
+    """Response model for password change."""
+
+    message: str
+
+
+@router.post(
+    "/change-password",
+    response_model=ChangePasswordResponse,
+    summary="Change password",
+)
+async def change_password(
+    request: ChangePasswordRequest,
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> ChangePasswordResponse:
+    """Change the current user's password.
+
+    Requires the current password for verification.
+    """
+    if not verify_password(request.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    current_user.password_hash = get_password_hash(request.new_password)
+    await session.commit()
+
+    return ChangePasswordResponse(message="Password changed successfully")

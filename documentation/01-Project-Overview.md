@@ -48,12 +48,16 @@ Civic-Link is a **non-commercial, safety-hardened** carpooling Digital Public In
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Backend** | FastAPI (Python 3.12+) | Async API framework |
-| **Database** | PostgreSQL + PostGIS | Geospatial data storage |
-| **Cache** | Redis | Session & commute offer caching |
-| **ORM** | SQLAlchemy 2.0 | Database abstraction |
-| **Validation** | Pydantic | Input/output validation |
+| **Database** | PostgreSQL 16 + PostGIS 3.4 | Geospatial data storage |
+| **Cache** | Redis 7 | Session & commute offer caching |
+| **ORM** | SQLAlchemy 2.0 | Async database abstraction |
+| **Validation** | Pydantic 2.x | Input/output validation |
 | **Async** | asyncpg | Async PostgreSQL driver |
-| **Geospatial** | GeoAlchemy2 | PostGIS integration |
+| **Geospatial** | GeoAlchemy2 + Shapely | PostGIS integration |
+| **Mobile** | Flutter 3.11+ / Dart | Cross-platform mobile app |
+| **State Mgmt** | Riverpod 3.x | Flutter state management |
+| **Migrations** | Alembic (async) | Database schema versioning |
+| **Container** | Docker Compose | Development & production orchestration |
 
 ---
 
@@ -62,17 +66,26 @@ Civic-Link is a **non-commercial, safety-hardened** carpooling Digital Public In
 ```
 Traffic-pooling/
 ├── app/
-│   ├── api/v1/endpoints/    # API route handlers
-│   ├── core/                 # Config, database, security, exceptions
-│   ├── models/              # SQLAlchemy models
-│   ├── schemas/             # Pydantic schemas
-│   └── services/            # Business logic
-├── docker/                  # Docker configurations
-├── documentation/           # Project documentation (this folder)
-├── tests/                   # Test suite
-├── docker-compose.yml       # Container orchestration
+│   ├── api/v1/endpoints/    # API route handlers (auth, commutes, matches, civic_score, telemetry)
+│   ├── core/                 # Config, database, security, exceptions, redis
+│   ├── models/              # SQLAlchemy ORM models (8 tables)
+│   ├── schemas/             # Pydantic request/response schemas
+│   └── services/            # Business logic (match, commute, civic_score, user, audit, telemetry)
+├── civic_link/              # Flutter mobile app
+│   └── lib/
+│       ├── providers/       # Riverpod state management (auth, civic_score, commute, match, profile, theme)
+│       ├── services/        # AuthService, TelemetryService (50Hz IMU isolate)
+│       ├── ui/screens/      # 12 screens (splash, login, register, dashboard, commute CRUD, match CRUD, profile, settings)
+│       ├── ui/widgets/      # Shared widgets (AuthGuard, CivicScoreBadge, CommuteCard, MatchCard, ErrorBanner, LoadingOverlay)
+│       └── utils/           # PrivacyCrypto (SHA-256 email hashing)
+├── docker/                  # Docker configurations (nginx, redis)
+├── documentation/           # Project documentation (8 guides)
+├── migrations/              # Alembic async migrations (2 versions)
+├── tests/                   # Pytest suite (4 test files, 75+ tests)
+├── docker-compose.yml       # Development container orchestration
+├── docker-compose.prod.yml  # Production hardened orchestration
 ├── requirements.txt         # Python dependencies
-└── .env                     # Environment variables
+└── .env                     # Environment variables (not committed)
 ```
 
 ---
@@ -113,23 +126,35 @@ Traffic-pooling/
 ## Roadmap
 
 ### Phase 1: Backend Core ✅ COMPLETED
-- [x] SQLAlchemy 2.0 models with PostGIS
-- [x] Hard-reject safety logic
-- [x] Telemetry processing service
-- [x] Docker containerization
-- [x] Database seeding & safety testing
+- [x] SQLAlchemy 2.0 models with PostGIS (8 tables)
+- [x] Hard-reject safety logic (SQL-level gender filtering)
+- [x] Telemetry processing service (50Hz IMU, swerve detection)
+- [x] Docker containerization (dev + production hardened)
+- [x] Database seeding & safety testing (75+ tests)
+- [x] All CRUD endpoints (auth, commutes, matches, civic_score, telemetry)
+- [x] Encrypted audit logging (AES-256-GCM)
+- [x] JWT auth with refresh tokens
 
-### Phase 2: Flutter UI Shell ⏳ PENDING
-- [ ] Mobile app UI/UX
-- [ ] Real-time location tracking
-- [ ] In-app matching interface
-- [ ] Civic score visualization
+### Phase 2: Flutter UI ✅ COMPLETED
+- [x] Splash screen with session restore
+- [x] Login + Registration with Zero-Liability email hashing
+- [x] Dashboard with real-time Civic Score + fl_chart history
+- [x] Commute CRUD (create, search, detail, my commutes, cancel)
+- [x] Match lifecycle (request, confirm, detail, rate)
+- [x] Profile screen with score badge + edit form
+- [x] Settings screen with theme toggle + logout
+- [x] Shared widget library (6 reusable widgets)
+- [x] Dark/light theme with SharedPreferences persistence
 
 ### Phase 3: Production Hardening ⏳ PENDING
 - [ ] Load testing
 - [ ] Security audit
 - [ ] Performance optimization
 - [ ] Production deployment
+- [ ] Map/location picker for commute creation
+- [ ] Password reset flow
+- [ ] Real email verification
+- [ ] Push notifications
 
 ---
 
@@ -139,6 +164,8 @@ Traffic-pooling/
 2. **Safety at Scale:** Database-level gender filtering prevents any application-level bypass
 3. **Real-time Processing:** 50Hz IMU data processing with zero-lag background tasks
 4. **Privacy First:** Delete-by-default architecture for location data
+5. **Zero-Liability Auth:** SHA-256 email hashing — raw emails never reach the server
+6. **Cross-Platform:** Flutter mobile app with Riverpod state management and dark/light themes
 
 ---
 
@@ -153,6 +180,6 @@ This is a **Digital Public Infrastructure** project. Contributions are welcome:
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: April 12, 2026*  
-*Status: Backend Verified, Ready for Flutter UI*
+*Document Version: 2.0*
+*Last Updated: May 17, 2026*
+*Status: Backend + Flutter UI Complete, Ready for Production Hardening*

@@ -30,6 +30,7 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(commuteProvider.notifier).fetchMyCommutes();
+      ref.read(commuteProvider.notifier).fetchMyOffers();
     });
   }
 
@@ -110,24 +111,8 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
             children: [
               // My Offers tab
               _buildCommuteList(commuteState.commutes),
-              // My Requests tab (placeholder - no endpoint for passenger offers yet)
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.directions_walk,
-                        color: kHintGrey.withOpacity(0.3), size: 64),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No ride requests yet',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // My Requests tab
+              _buildOffersList(commuteState.offers),
             ],
           ),
         ),
@@ -200,6 +185,136 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
                 ),
               ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildOffersList(List<CommuteOffer> offers) {
+    if (offers.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.directions_walk,
+                color: kHintGrey.withOpacity(0.3), size: 64),
+            const SizedBox(height: 16),
+            Text(
+              'No ride requests yet',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Search for commutes to request a ride',
+              style: TextStyle(color: kHintGrey, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: offers.length,
+      itemBuilder: (context, index) {
+        final offer = offers[index];
+        return Card(
+          color: kSecondaryGrey,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.directions_walk,
+                        color: kAccentGreen, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${offer.originAddress} → ${offer.destinationAddress}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today,
+                        color: kHintGrey, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      offer.preferredDepartureDate,
+                      style: TextStyle(color: kHintGrey, fontSize: 13),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.access_time, color: kHintGrey, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      offer.preferredDepartureTime,
+                      style: TextStyle(color: kHintGrey, fontSize: 13),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: offer.status == 'pending'
+                            ? const Color(0xFFFFEA00).withOpacity(0.15)
+                            : kAccentGreen.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        offer.status.toUpperCase(),
+                        style: TextStyle(
+                          color: offer.status == 'pending'
+                              ? const Color(0xFFFFEA00)
+                              : kAccentGreen,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (offer.isWomenOnly) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.pinkAccent.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'WOMEN ONLY',
+                          style: TextStyle(
+                            color: Colors.pinkAccent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

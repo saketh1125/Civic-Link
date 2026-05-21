@@ -317,3 +317,34 @@ async def create_commute_offer(
         max_walking_distance=offer.max_walking_distance,
         status=offer.status,
     )
+
+
+@router.get(
+    "/offers/my",
+    response_model=List[CommuteOfferResponse],
+    summary="Get my ride requests",
+)
+async def get_my_offers(
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> List[CommuteOfferResponse]:
+    """Get all commute offers (ride requests) for the current user."""
+    service = CommuteService(session)
+    offers = await service.get_pending_offers_for_passenger(
+        passenger_id=str(current_user.id),
+    )
+
+    return [
+        CommuteOfferResponse(
+            id=str(o.id),
+            passenger_id=o.passenger_id,
+            origin_address=o.origin_address,
+            destination_address=o.destination_address,
+            preferred_departure_date=o.preferred_departure_date,
+            preferred_departure_time=o.preferred_departure_time,
+            is_women_only=o.is_women_only,
+            max_walking_distance=o.max_walking_distance,
+            status=o.status,
+        )
+        for o in offers
+    ]

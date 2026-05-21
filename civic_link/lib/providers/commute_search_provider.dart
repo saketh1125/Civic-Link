@@ -1,8 +1,6 @@
 /// Commute Search Provider
 ///
-/// Manages commute search/filter operations.
-/// BACKEND BLOCKER: GET /commutes/search is MISSING.
-/// Stubbed with GET /commutes/my as placeholder.
+/// Manages commute search/filter operations via GET /commutes/search.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,31 +84,26 @@ class CommuteSearchNotifier extends Notifier<CommuteSearchState> {
     ref.read(authProvider.notifier).logout();
   }
 
-  // TODO: BACKEND BLOCKER — GET /commutes/search does not exist.
-  // Using GET /commutes/my as placeholder until search endpoint is built.
   Future<void> search(SearchFilters filters) async {
     state = state.copyWith(isLoading: true, filters: filters);
     try {
-      // PLACEHOLDER: Using /commutes/my instead of /commutes/search
-      final response = await _dio.get('/api/v1/commutes/my');
-      final List<dynamic> data = response.data as List;
-      var commutes = data.map((j) => Commute.fromJson(j)).toList();
-
-      // Client-side filtering as best-effort placeholder
+      final queryParams = <String, dynamic>{};
       if (filters.origin != null && filters.origin!.isNotEmpty) {
-        commutes = commutes
-            .where((c) => c.originAddress
-                .toLowerCase()
-                .contains(filters.origin!.toLowerCase()))
-            .toList();
+        queryParams['origin_query'] = filters.origin;
       }
       if (filters.destination != null && filters.destination!.isNotEmpty) {
-        commutes = commutes
-            .where((c) => c.destinationAddress
-                .toLowerCase()
-                .contains(filters.destination!.toLowerCase()))
-            .toList();
+        queryParams['destination_query'] = filters.destination;
       }
+      if (filters.date != null && filters.date!.isNotEmpty) {
+        queryParams['departure_date'] = filters.date;
+      }
+
+      final response = await _dio.get(
+        '/api/v1/commutes/search',
+        queryParameters: queryParams,
+      );
+      final List<dynamic> data = response.data as List;
+      final commutes = data.map((j) => Commute.fromJson(j)).toList();
 
       state = state.copyWith(results: commutes, isLoading: false);
     } on DioException catch (e) {
