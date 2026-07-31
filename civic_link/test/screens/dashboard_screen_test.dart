@@ -55,27 +55,28 @@ void main() {
       expect(find.text('100.0'), findsOneWidget);
     });
 
-    testWidgets('shows logout button', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authProvider.overrideWith(() {
-              final n = FakeAuthNotifier();
-              n.setPreAuthenticated();
-              return n;
-            }),
-          ],
-          child: MaterialApp(
-            theme: buildAppTheme(),
-            home: const DashboardScreen(),
-          ),
+  testWidgets('shows profile and settings buttons', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authProvider.overrideWith(() {
+            final n = FakeAuthNotifier();
+            n.setPreAuthenticated();
+            return n;
+          }),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const DashboardScreen(),
         ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byIcon(Icons.logout), findsOneWidget);
-    });
+    expect(find.byIcon(Icons.person_outline), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+  });
 
     testWidgets('shows collecting data when history is empty',
         (tester) async {

@@ -4,6 +4,7 @@
 /// Shares auth data (userId, token) between LoginScreen and DashboardScreen.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../services/auth_service.dart';
 import '../main.dart';
@@ -75,6 +76,12 @@ class AuthNotifier extends Notifier<AuthState> {
         refreshToken: refreshToken,
         isAuthenticated: true,
       );
+      // Set Sentry user context (ID only — no PII)
+      try {
+        await Sentry.configureScope(
+          (scope) => scope.setUser(SentryUser(id: userId ?? 'unknown')),
+        );
+      } catch (_) {}
     }
     return result;
   }
@@ -146,6 +153,12 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> logout() async {
     await _authService.logout();
     state = AuthState.unauthenticated();
+    // Clear Sentry user context
+    try {
+      await Sentry.configureScope(
+        (scope) => scope.setUser(null),
+      );
+    } catch (_) {}
   }
 }
 

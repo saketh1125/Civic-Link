@@ -158,7 +158,7 @@ class Commute(BaseModel):
 
     # Commute Metadata
     commute_type: Mapped[CommuteType] = mapped_column(
-        Enum(CommuteType, name="commute_type_enum"),
+        Enum(CommuteType, name="commute_type_enum", values_callable=lambda x: [e.value for e in x]),
         default=CommuteType.ONE_TIME,
         nullable=False,
     )
@@ -168,7 +168,7 @@ class Commute(BaseModel):
         comment="Comma-separated days for recurring commutes (e.g., 'monday,wednesday')",
     )
     status: Mapped[CommuteStatus] = mapped_column(
-        Enum(CommuteStatus, name="commute_status_enum"),
+        Enum(CommuteStatus, name="commute_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=CommuteStatus.PENDING,
         nullable=False,
         index=True,

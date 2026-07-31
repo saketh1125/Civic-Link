@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'services/auth_service.dart';
 import 'providers/auth_provider.dart';
@@ -16,7 +17,7 @@ import 'ui/screens/registration_screen.dart';
 /// Override at build time: `flutter run --dart-define=BASE_URL=https://api.example.com`
 const kBaseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'http://192.168.1.9:8000',
+  defaultValue: 'http://192.168.1.10:8000',
 );
 
 /// Deep black — primary surface colour.
@@ -40,16 +41,28 @@ const kInputFill = Color(0xFF141428);
 
 /// Application entry point.
 ///
-/// Ensures Flutter binding is initialised, then launches the app
+/// Initialises Sentry (if DSN provided), then launches the app
 /// with SplashScreen as the initial route.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final authService = AuthService(baseUrl: kBaseUrl);
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+  const environment = String.fromEnvironment('FLUTTER_ENV', defaultValue: 'development');
 
-  runApp(
-    ProviderScope(
-      child: MyApp(authService: authService),
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = sentryDsn;
+      options.environment = environment;
+      options.tracesSampleRate = 0.2;
+      options.profilesSampleRate = 0.1;
+      options.attachScreenshot = true;
+      options.attachViewHierarchy = true;
+      options.enableAutoSessionTracking = true;
+    },
+    appRunner: () => runApp(
+      ProviderScope(
+        child: MyApp(authService: AuthService(baseUrl: kBaseUrl)),
+      ),
     ),
   );
 }

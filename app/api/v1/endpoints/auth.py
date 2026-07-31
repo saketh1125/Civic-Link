@@ -23,6 +23,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import Gender, User, UserRole, VerificationStatus
+from app.schemas.user import UserProfileUpdate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -487,7 +488,7 @@ async def get_current_user_profile(
     description="Partially update the profile of the currently authenticated user. Only provided fields are updated.",
 )
 async def update_current_user_profile(
-    request: "UserProfileUpdate",
+    request: UserProfileUpdate,
     session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> UserResponse:
@@ -503,7 +504,6 @@ async def update_current_user_profile(
     Returns:
         Updated user data
     """
-    from app.schemas.user import UserProfileUpdate
     from app.services.user_service import UserService
 
     service = UserService(session)

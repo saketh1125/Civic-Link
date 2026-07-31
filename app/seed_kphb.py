@@ -368,7 +368,7 @@ async def main():
             report_lines.append("STATUS: ABORTED")
     
     # Write verification results to file
-    with open("verification_results.txt", "w") as f:
+    with open("/tmp/verification_results.txt", "w") as f:
         f.write("\n".join(report_lines))
     
     print("\n" + "=" * 70)

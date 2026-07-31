@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     gyroscope_threshold: float = 1.5  # rad/s
     swerve_cooldown_ms: int = 60000  # 1 minute
 
+    # Sentry Error Monitoring
+    sentry_dsn: Optional[str] = None
+    sentry_environment: str = "development"
+    sentry_traces_sample_rate: float = 0.2
+    sentry_profile_session_sample_rate: float = 0.1
+
     # GDPR/RTI Compliance
     anonymization_delay_hours: int = 24
     audit_log_retention_days: int = 90

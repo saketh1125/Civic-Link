@@ -174,24 +174,26 @@ void main() {
       expect(find.byType(RegistrationScreen), findsOneWidget);
     });
 
-    testWidgets('shows snackbar on forgot password tap', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authProvider.overrideWith(FakeAuthNotifier.new),
-            civicScoreProvider.overrideWith(FakeCivicScoreNotifier.new),
-          ],
-          child: MaterialApp(
-            theme: buildAppTheme(),
-            home: const LoginScreen(),
-          ),
+  testWidgets('shows dialog on forgot password tap', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authProvider.overrideWith(FakeAuthNotifier.new),
+          civicScoreProvider.overrideWith(FakeCivicScoreNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const LoginScreen(),
         ),
-      );
+      ),
+    );
 
-      await tester.tap(find.text('Forgot password?'));
-      await tester.pump();
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Password reset coming soon.'), findsOneWidget);
-    });
+    expect(find.text('Reset Password'), findsOneWidget);
+    expect(find.textContaining('Password reset requires email verification'),
+        findsOneWidget);
+  });
   });
 }

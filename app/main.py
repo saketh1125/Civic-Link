@@ -4,11 +4,15 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sentry_sdk.integrations.fastapi import FastApiIntegration, StarletteIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.api import api_router
@@ -36,6 +40,66 @@ configure_logging()
 settings = get_settings()
 logger = get_logger()
 stdlib_logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# SENTRY — PII FILTER + CONDITIONAL INIT
+# =============================================================================
+
+_SENSITIVE_HEADERS = {"authorization", "cookie", "x-api-key"}
+_SENSITIVE_BODY_KEYS = {
+    "password", "token", "access_token", "refresh_token",
+    "audit_log_encryption_key", "jwt_secret_key",
+}
+
+
+def _before_send(event: dict, hint: dict) -> dict:
+    """Strip PII and secrets from Sentry events before sending.
+
+    Always returns the event (never None — that would drop the event).
+    """
+    # Strip sensitive request headers
+    if "request" in event and "headers" in event["request"]:
+        event["request"]["headers"] = {
+            k: v for k, v in event["request"]["headers"].items()
+            if k.lower() not in _SENSITIVE_HEADERS
+        }
+
+    # Strip sensitive request body keys
+    if "request" in event and "data" in event["request"]:
+        data = event["request"]["data"]
+        if isinstance(data, dict):
+            event["request"]["data"] = {
+                k: "[FILTERED]" if k.lower() in _SENSITIVE_BODY_KEYS else v
+                for k, v in data.items()
+            }
+
+    # Strip sensitive extra context
+    if "extra" in event:
+        event["extra"] = {
+            k: "[FILTERED]" if any(
+                s in k.lower() for s in ("secret", "key", "password")
+            ) else v
+            for k, v in event["extra"].items()
+        }
+
+    return event
+
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.sentry_environment,
+        send_default_pii=False,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        before_send=_before_send,
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+            SqlalchemyIntegration(),
+            RedisIntegration(),
+        ],
+    )
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):

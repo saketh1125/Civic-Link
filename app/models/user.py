@@ -93,7 +93,7 @@ class User(BaseModel):
         nullable=False,
     )
     gender: Mapped[Gender] = mapped_column(
-        Enum(Gender, name="gender_enum"),
+        Enum(Gender, name="gender_enum", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         index=True,
         comment="Gender for women-only commute safety matching",
@@ -113,7 +113,7 @@ class User(BaseModel):
 
     # Verification & Status
     verification_status: Mapped[VerificationStatus] = mapped_column(
-        Enum(VerificationStatus, name="verification_status_enum"),
+        Enum(VerificationStatus, name="verification_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=VerificationStatus.PENDING,
         nullable=False,
     )
@@ -122,7 +122,7 @@ class User(BaseModel):
         nullable=True,
     )
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role_enum"),
+        Enum(UserRole, name="user_role_enum", values_callable=lambda x: [e.value for e in x]),
         default=UserRole.COMMUTER,
         nullable=False,
     )
