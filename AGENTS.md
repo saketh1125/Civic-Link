@@ -84,9 +84,18 @@
 - Riverpod 3.x state management
 - `lib/providers/auth_provider.dart` — `AuthNotifier` manages login/logout/session state
 - `lib/providers/civic_score_provider.dart` — `CivicScoreNotifier` + 50Hz telemetry lifecycle
+- `lib/providers/theme_provider.dart` — `ThemeNotifier` manages light/dark/system mode
 - `lib/services/auth_service.dart` — Zero-Liability auth (SHA-256 email hashing via `PrivacyCrypto`)
 - `lib/services/telemetry_isolate.dart` — background isolate for 50Hz IMU sensor processing
-- `lib/ui/screens/dashboard_screen.dart` — real-time score display with fl_chart
+- `lib/core/design/` — **design system tokens**:
+  - `app_colors.dart` — light/dark ColorSchemes, score tier colors
+  - `app_text_styles.dart` — Inter + JetBrains Mono via `google_fonts`
+  - `app_theme.dart` — full `ThemeData` builders
+  - `app_decoration.dart` — radii, shadows, motion, `context.colors` extensions
+  - `app_spacing.dart` — spacing scale + layout constants
+  - `app_status.dart` — `CivicStatus` enum + color/label/icon mapping
+- `lib/ui/widgets/` — **shared component library**: `AuthHeader`, `ErrorBanner`, `GlassCard`, `SectionHeader`, `SettingsTile`, `PasswordField`, `EmptyState`, `StatusChip`, `NeonButton`, `ScoreRing`, `ScoreLineChart`, `StaggeredFadeIn`, `FormTile`
+- `lib/ui/screens/` — all screens consume the design system; **no hardcoded colors**
 
 ### Auth Flow
 1. `LoginScreen` → `authProvider.notifier.login(email, password)` → stores userId + token in `FlutterSecureStorage`
@@ -106,6 +115,7 @@
 
 ### Dependencies
 - `flutter_riverpod: ^3.3.1`, `dio: ^5.9.2`, `sensors_plus: ^7.0.0`, `fl_chart: ^1.2.0`, `flutter_secure_storage: ^10.1.0`
+- `google_fonts: ^6.2.1`, `animations: ^2.1.1`, `gap: ^3.0.1` (visual overhaul)
 
 ## Git & Branching
 - `.gitignore` scopes `/lib/` to Python only; Flutter `civic_link/lib/` is unblocked via negation rules
@@ -113,6 +123,11 @@
 - Never commit debug `print()` statements or hardcoded credentials
 
 ## Conventions
+- **No hardcoded colors in screens** — always use `Theme.of(context).colorScheme` via the `context.colors` extension from `lib/core/design/app_decoration.dart`
+- **No inline `TextStyle` for layout text** — use `context.textTheme` (powered by Inter via `google_fonts`)
+- **Use shared widgets** from `lib/ui/widgets/` — `GlassCard`, `SectionHeader`, `StatusChip`, `ErrorBanner`, `PasswordField`, `NeonButton`, `EmptyState`, `ScoreRing`, `ScoreLineChart`, `FormTile`, `StaggeredFadeIn`, `AuthHeader`, etc.
+- **Status colors** come from `lib/core/design/app_status.dart` only
+- **Score tier colors** come from `lib/core/design/app_colors.dart` only
 - No debug prints in committed code
 - Safety-critical code (gender matching) must have both SQL and Python validation
 - All email addresses hashed before transmission (Zero-Liability)

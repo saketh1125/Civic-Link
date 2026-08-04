@@ -93,7 +93,7 @@ class ScoreRing extends StatelessWidget {
       tween: Tween<double>(begin: 0, end: score),
       duration: heroAnimationDuration,
       curve: Curves.easeOutCubic,
-      builder: (_, animatedScore, __) => SizedBox(
+      builder: (context, animatedScore, child) => SizedBox(
         width: size,
         height: size,
         child: Stack(

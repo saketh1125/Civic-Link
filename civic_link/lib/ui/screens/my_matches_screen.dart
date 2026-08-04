@@ -77,7 +77,7 @@ class _MyMatchesScreenState extends ConsumerState<MyMatchesScreen> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _filters.length,
-                    separatorBuilder: (_, __) => const Gap(8),
+                    separatorBuilder: (context, index) => const Gap(8),
                     itemBuilder: (context, index) {
                       final (value, label) = _filters[index];
                       return _FilterChip(
