@@ -1,16 +1,23 @@
 /// My Matches Screen
 ///
-/// Shows user's matches with filter chips: Pending / Confirmed / Completed.
+/// Filterable match list. Uses the shared MatchCard + StatusChip and the
+/// design-system empty state / filter chips.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/match_provider.dart';
 import '../widgets/auth_guard.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/error_banner.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/match_card.dart';
+import '../widgets/staggered_fade_in.dart';
 import 'match_detail_screen.dart';
 
 class MyMatchesScreen extends ConsumerStatefulWidget {
@@ -22,6 +29,13 @@ class MyMatchesScreen extends ConsumerStatefulWidget {
 
 class _MyMatchesScreenState extends ConsumerState<MyMatchesScreen> {
   String _selectedFilter = 'all';
+
+  static const _filters = <(String, String)>[
+    ('all', 'All'),
+    ('pending', 'Pending'),
+    ('confirmed', 'Confirmed'),
+    ('completed', 'Completed'),
+  ];
 
   @override
   void initState() {
@@ -48,119 +62,83 @@ class _MyMatchesScreenState extends ConsumerState<MyMatchesScreen> {
       child: LoadingOverlay(
         isLoading: matchState.isLoading,
         child: Scaffold(
-          backgroundColor: kPrimaryBlack,
           appBar: AppBar(
-            backgroundColor: kPrimaryBlack,
-            elevation: 0,
-            title: const Text(
-              'MY MATCHES',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            title: const Text('MY MATCHES'),
+            leading: const BackButton(),
           ),
           body: Column(
             children: [
-              // Filter chips
-              Container(
+              // ---- Filter bar ---------------------------------------------------
+              Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: kSecondaryGrey,
-                child: Row(
-                  children: [
-                    _buildFilterChip('all', 'All'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('pending', 'Pending'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('confirmed', 'Confirmed'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('completed', 'Completed'),
-                  ],
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: SizedBox(
+                  height: 44,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _filters.length,
+                    separatorBuilder: (_, __) => const Gap(8),
+                    itemBuilder: (context, index) {
+                      final (value, label) = _filters[index];
+                      return _FilterChip(
+                        label: label,
+                        selected: _selectedFilter == value,
+                        onSelected: () =>
+                            setState(() => _selectedFilter = value),
+                      );
+                    },
+                  ),
                 ),
               ),
 
-              // Error
+              // ---- Error banner ---------------------------------------------------
               if (matchState.error != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  color: Colors.red.shade900.withOpacity(0.3),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline,
-                          color: Colors.redAccent, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          matchState.error!,
-                          style: const TextStyle(
-                              color: Colors.redAccent, fontSize: 13),
-                        ),
-                      ),
-                    ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: ErrorBanner(
+                    message: matchState.error!,
                   ),
                 ),
 
-              // Match list
+              // ---- Match list ------------------------------------------------------
               Expanded(
                 child: filtered.isEmpty && !matchState.isLoading
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.handshake,
-                                color: kHintGrey.withOpacity(0.3), size: 64),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No matches yet',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Request a ride to get matched',
-                              style: TextStyle(
-                                  color: kHintGrey, fontSize: 13),
-                            ),
-                          ],
-                        ),
+                    ? const EmptyState(
+                        icon: Icons.handshake_rounded,
+                        title: 'No matches yet',
+                        message: 'Request a ride to get matched',
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding:
+                            const EdgeInsets.all(AppSpacing.screenPaddingH),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
                           final match = filtered[index];
                           final isDriver =
                               match.driverId == authState.userId;
-                          final otherName = isDriver
-                              ? 'Passenger'
-                              : 'Driver';
+                          final otherName =
+                              isDriver ? 'Passenger' : 'Driver';
 
-                          return MatchCard(
-                            id: match.id,
-                            commuteId: match.commuteId,
-                            driverId: match.driverId,
-                            passengerId: match.passengerId,
-                            status: match.status,
-                            pickupRadiusMeters: match.pickupRadiusMeters,
-                            commuteWasWomenOnly: match.commuteWasWomenOnly,
-                            otherUserName: otherName,
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      MatchDetailScreen(matchId: match.id),
-                                ),
-                              );
-                            },
+                          return StaggeredFadeIn(
+                            delay: Duration(milliseconds: 60 * index),
+                            child: MatchCard(
+                              id: match.id,
+                              commuteId: match.commuteId,
+                              driverId: match.driverId,
+                              passengerId: match.passengerId,
+                              status: match.status,
+                              pickupRadiusMeters: match.pickupRadiusMeters,
+                              commuteWasWomenOnly: match.commuteWasWomenOnly,
+                              otherUserName: otherName,
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        MatchDetailScreen(matchId: match.id),
+                                  ),
+                                );
+                              },
+                            ),
                           );
                         },
                       ),
@@ -171,23 +149,54 @@ class _MyMatchesScreenState extends ConsumerState<MyMatchesScreen> {
       ),
     );
   }
+}
 
-  Widget _buildFilterChip(String value, String label) {
-    final isSelected = _selectedFilter == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? kAccentGreen : kInputFill,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? kPrimaryBlack : kHintGrey,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+// =============================================================================
+// FILTER CHIP
+// =============================================================================
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onSelected,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primary
+                : scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? scheme.primary
+                  : scheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Text(
+            label,
+            style: context.textTheme.labelLarge?.copyWith(
+              color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              letterSpacing: 0.2,
+            ),
           ),
         ),
       ),

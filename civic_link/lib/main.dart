@@ -1,13 +1,28 @@
+/// Civic-Link — application entry point.
+///
+/// Initialises Sentry (if DSN provided), then launches the app
+/// with SplashScreen as the initial route. Theme is driven by
+/// `AppTheme` (light + dark) via `themeProvider`.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
-import 'services/auth_service.dart';
+import 'core/design/app_decoration.dart';
+import 'core/design/app_spacing.dart';
+import 'core/design/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'services/auth_service.dart';
 import 'ui/screens/dashboard_screen.dart';
-import 'ui/screens/splash_screen.dart';
 import 'ui/screens/registration_screen.dart';
+import 'ui/screens/splash_screen.dart';
+import 'ui/widgets/auth_header.dart';
+import 'ui/widgets/error_banner.dart';
+import 'ui/widgets/neon_button.dart';
+import 'ui/widgets/password_field.dart';
+
+export 'core/design/app_colors.dart';
 
 // =============================================================================
 // APP-WIDE CONSTANTS
@@ -20,34 +35,16 @@ const kBaseUrl = String.fromEnvironment(
   defaultValue: 'http://192.168.1.10:8000',
 );
 
-/// Deep black — primary surface colour.
-const kPrimaryBlack = Color(0xFF0A0A0A);
-
-/// Neon green — primary accent / CTA colour.
-const kAccentGreen = Color(0xFF00E676);
-
-/// Subtle grey for secondary text and dividers.
-const kSecondaryGrey = Color(0xFF1A1A2E);
-
-/// Hint / muted text colour.
-const kHintGrey = Color(0xFF6B6B80);
-
-/// Input field fill colour.
-const kInputFill = Color(0xFF141428);
-
 // =============================================================================
 // ENTRY POINT
 // =============================================================================
 
-/// Application entry point.
-///
-/// Initialises Sentry (if DSN provided), then launches the app
-/// with SplashScreen as the initial route.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
-  const environment = String.fromEnvironment('FLUTTER_ENV', defaultValue: 'development');
+  const environment =
+      String.fromEnvironment('FLUTTER_ENV', defaultValue: 'development');
 
   await SentryFlutter.init(
     (options) {
@@ -71,9 +68,6 @@ Future<void> main() async {
 // ROOT APPLICATION WIDGET
 // =============================================================================
 
-/// Root [MaterialApp] wrapped in [ProviderScope].
-///
-/// Starts with [SplashScreen] which handles auth check and routing.
 class MyApp extends StatelessWidget {
   final AuthService authService;
 
@@ -91,110 +85,9 @@ class MyApp extends StatelessWidget {
           title: 'Civic-Link',
           debugShowCheckedModeBanner: false,
           themeMode: themeMode,
-          theme: ThemeData.light().copyWith(
-            scaffoldBackgroundColor: Colors.white,
-            colorScheme: const ColorScheme.light(
-              primary: kAccentGreen,
-              onPrimary: Colors.white,
-              secondary: kAccentGreen,
-              onSecondary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black,
-              error: Colors.redAccent,
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: Colors.grey.shade100,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kAccentGreen,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            dividerColor: Colors.grey.shade200,
-          ),
-          darkTheme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: kPrimaryBlack,
-        colorScheme: ColorScheme.dark(
-          primary: kAccentGreen,
-          onPrimary: kPrimaryBlack,
-          secondary: kAccentGreen,
-          onSecondary: kPrimaryBlack,
-          surface: kPrimaryBlack,
-          onSurface: Colors.white,
-          error: Colors.redAccent,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: kInputFill,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          hintStyle: TextStyle(color: kHintGrey, fontSize: 15),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kAccentGreen,
-            foregroundColor: kPrimaryBlack,
-            minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            textStyle: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ),
-        textTheme: TextTheme(
-          headlineLarge: const TextStyle(
-            color: Colors.white,
-            fontSize: 42,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -2,
-          ),
-          headlineMedium: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-          ),
-          bodyLarge: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-          ),
-          bodyMedium: const TextStyle(
-            color: Colors.white70,
-            fontSize: 14,
-          ),
-          labelSmall: TextStyle(
-            color: kHintGrey,
-            fontSize: 15,
-          ),
-        ),
-        dividerColor: Colors.white.withOpacity(0.08),
-      ),
-      home: const SplashScreen(),
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          home: const SplashScreen(),
         );
       },
     );
@@ -205,10 +98,6 @@ class MyApp extends StatelessWidget {
 // LOGIN SCREEN
 // =============================================================================
 
-/// A clean, full-screen login form.
-///
-/// Collects email and password, delegates authentication to [AuthService],
-/// and navigates to [DashboardScreen] on success.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -264,38 +153,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = context.colors;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.authPaddingH,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ---- Logo / Title ----
-                  _buildHeader(),
+                  const AuthHeader(),
 
-                  const SizedBox(height: 48),
+                  const SizedBox(height: AppSpacing.huge),
 
                   // ---- Form ----
                   Form(
                     key: _formKey,
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Email field
+                        // Email
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
+                          autofillHints: const [AutofillHints.email],
+                          decoration: const InputDecoration(
                             labelText: 'Email',
-                            prefixIcon:
-                                const Icon(Icons.alternate_email, color: kHintGrey),
                             hintText: 'officer@police.gov.in',
+                            prefixIcon:
+                                Icon(Icons.alternate_email_rounded),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -309,151 +202,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           },
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.l),
 
-                        // Password field
-                        TextFormField(
+                        // Password
+                        PasswordField(
                           controller: _passwordController,
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon:
-                                const Icon(Icons.lock_outline, color: kHintGrey),
-                          ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Password is required';
                             }
                             return null;
                           },
+                          onFieldSubmitted: (_) => _onLoginPressed(),
                         ),
 
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppSpacing.m),
 
-                        // Server error banner
+                        // Server error
                         if (_serverError != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade900.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: Colors.redAccent.withOpacity(0.4)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error_outline,
-                                    color: Colors.redAccent, size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _serverError!,
-                                    style: const TextStyle(
-                                      color: Colors.redAccent,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          ErrorBanner(
+                            message: _serverError!,
+                            onDismiss: () =>
+                                setState(() => _serverError = null),
                           ),
-                          const SizedBox(height: 16),
-                        ],
+                          const SizedBox(height: AppSpacing.l),
+                        ] else
+                          const SizedBox(height: AppSpacing.l),
 
-                        // Login button
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed:
-                                _isLoading ? null : _onLoginPressed,
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 22,
-                                    width: 22,
-                                    child: CircularProgressIndicator(
-                                      color: kPrimaryBlack,
-                                      strokeWidth: 2.5,
-                                    ),
-                                  )
-                                : const Text('SECURE LOGIN'),
-                          ),
+                        // Submit
+                        NeonButton(
+                          label: 'SECURE LOGIN',
+                          icon: Icons.lock_open_rounded,
+                          isLoading: _isLoading,
+                          onPressed: _onLoginPressed,
                         ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.l),
 
                   // ---- Forgot Password ----
                   Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: kSecondaryGrey,
-                            title: const Text('Reset Password',
-                                style: TextStyle(color: Colors.white)),
-                            content: const Text(
-                              'Password reset requires email verification. '
-                              'Please contact your HR administrator or '
-                              'use the "Change Password" option in Settings '
-                              'if you know your current password.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(),
-                                child: Text('OK',
-                                    style: TextStyle(color: kAccentGreen)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      child: Text(
-                        'Forgot password?',
-                        style: TextStyle(
-                          color: kAccentGreen,
-                          fontSize: 14,
-                        ),
-                      ),
+                    child: TextButton(
+                      onPressed: () => _showResetDialog(context),
+                      child: const Text('Forgot password?'),
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.s),
 
                   // ---- Registration Link ----
                   Center(
-                    child: GestureDetector(
-                      onTap: () {
+                    child: TextButton(
+                      onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => const RegistrationScreen(),
                           ),
                         );
                       },
-                      child: Text(
-                        "Don't have an account? Register",
-                        style: TextStyle(
-                          color: kAccentGreen,
-                          fontSize: 14,
+                      child: Text.rich(
+                        TextSpan(
+                          text: "Don't have an account? ",
+                          style: context.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: 'Register',
+                              style: TextStyle(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xxl),
 
                   // ---- Footer ----
                   Center(
                     child: Text(
-                      'Civic-Link DPI',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
-                        fontSize: 12,
+                      'CIVIC-LINK DPI',
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
                         letterSpacing: 2,
                       ),
                     ),
@@ -467,44 +303,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  /// Top section with the app icon mark and title.
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: kAccentGreen.withOpacity(0.1),
-            shape: BoxShape.circle,
-            border: Border.all(color: kAccentGreen.withOpacity(0.4), width: 2),
-          ),
-          child: Icon(
-            Icons.security,
-            color: kAccentGreen,
-            size: 36,
-          ),
+  void _showResetDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: const Text(
+          'Password reset requires email verification. '
+          'Please contact your HR administrator or use the '
+          '"Change Password" option in Settings if you know '
+          'your current password.',
         ),
-        const SizedBox(height: 20),
-        const Text(
-          'CIVIC-LINK',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 4,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Traffic Police • Pooling Platform',
-          style: TextStyle(
-            color: kHintGrey,
-            fontSize: 13,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

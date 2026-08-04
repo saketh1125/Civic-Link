@@ -3,8 +3,11 @@
 /// Circular badge displaying civic score with tier color coding.
 /// Used by DashboardScreen, CommuteSearchScreen, CommuteDetailScreen,
 /// MyMatchesScreen, ProfileScreen.
+library;
 
 import 'package:flutter/material.dart';
+
+import '../../core/design/app_colors.dart';
 
 enum CivicScoreBadgeSize { small, medium, large }
 
@@ -22,9 +25,9 @@ class CivicScoreBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dimensions = _getDimensions();
-    final tierColor = _getTierColor();
-    final tierLabel = _getTierLabel();
+    final dimensions = _dimensions;
+    final tierColor = scoreTierColor(score);
+    final tierLabel = scoreTierLabel(score);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -34,7 +37,7 @@ class CivicScoreBadge extends StatelessWidget {
           height: dimensions,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: tierColor.withOpacity(0.15),
+            color: tierColor.withValues(alpha: 0.15),
             border: Border.all(color: tierColor, width: 2),
           ),
           child: Center(
@@ -64,26 +67,9 @@ class CivicScoreBadge extends StatelessWidget {
     );
   }
 
-  double _getDimensions() {
-    switch (size) {
-      case CivicScoreBadgeSize.small:
-        return 32;
-      case CivicScoreBadgeSize.medium:
-        return 48;
-      case CivicScoreBadgeSize.large:
-        return 72;
-    }
-  }
-
-  Color _getTierColor() {
-    if (score >= 90) return const Color(0xFF00E676);
-    if (score >= 70) return const Color(0xFFFFEA00);
-    return const Color(0xFFFF1744);
-  }
-
-  String _getTierLabel() {
-    if (score >= 90) return 'CRUISING';
-    if (score >= 70) return 'WARNING';
-    return 'ALERT';
-  }
+  double get _dimensions => switch (size) {
+        CivicScoreBadgeSize.small => 32,
+        CivicScoreBadgeSize.medium => 48,
+        CivicScoreBadgeSize.large => 72,
+      };
 }

@@ -2,10 +2,15 @@
 ///
 /// Card displaying commute summary with origin/destination, time, seats.
 /// Used by CommuteSearchScreen and MyCommutesScreen.
+library;
 
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_colors.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_status.dart';
+import 'status_chip.dart';
 
 class CommuteCard extends StatelessWidget {
   final String id;
@@ -37,119 +42,161 @@ class CommuteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kSecondaryGrey,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.08),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Route
-            Row(
+    final scheme = context.colors;
+    final isDark = context.isDark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadii.borderMd,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: AppRadii.borderMd,
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.8),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        originAddress,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
+                // Route
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.arrow_downward,
-                              color: kAccentGreen, size: 14),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              destinationAddress,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 13,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          Text(
+                            originAddress,
+                            style: context.textTheme.titleSmall?.copyWith(
+                              color: scheme.onSurface,
+                              fontWeight: FontWeight.w600,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Gap(4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.arrow_downward_rounded,
+                                color: scheme.primary,
+                                size: 14,
+                              ),
+                              const Gap(4),
+                              Expanded(
+                                child: Text(
+                                  destinationAddress,
+                                  style: context.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                if (driverScore != null)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getScoreColor(driverScore!).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      driverScore!.toStringAsFixed(0),
-                      style: TextStyle(
-                        color: _getScoreColor(driverScore!),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                    if (driverScore != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scoreTierColor(driverScore!)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          driverScore!.toStringAsFixed(0),
+                          style: TextStyle(
+                            color: scoreTierColor(driverScore!),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
+                  ],
+                ),
+                const Gap(12),
+                // Info row
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _InfoChip(
+                      icon: Icons.calendar_today_rounded,
+                      label: departureDate,
                     ),
-                  ),
+                    _InfoChip(
+                      icon: Icons.access_time_rounded,
+                      label: departureTime,
+                    ),
+                    _InfoChip(
+                      icon: Icons.airline_seat_recline_normal_rounded,
+                      label: '$availableSeats/$totalSeats',
+                    ),
+                    if (isWomenOnly)
+                      const _InfoChip(
+                        icon: Icons.shield_rounded,
+                        label: 'Women',
+                        accentColor: kSafetyPink,
+                      ),
+                    StatusChip(
+                      status: civicStatusFromString(status),
+                      compact: true,
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Info row
-            Row(
-              children: [
-                _buildChip(Icons.calendar_today, departureDate),
-                const SizedBox(width: 8),
-                _buildChip(Icons.access_time, departureTime),
-                const SizedBox(width: 8),
-                _buildChip(Icons.airline_seat_recline_normal,
-                    '$availableSeats/$totalSeats'),
-                if (isWomenOnly) ...[
-                  const SizedBox(width: 8),
-                  _buildChip(Icons.shield, 'Women', color: Colors.pinkAccent),
-                ],
-                const Spacer(),
-                _buildStatusChip(status),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildChip(IconData icon, String label, {Color? color}) {
+/// Small icon + label info chip.
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    this.accentColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    final effective = accentColor ?? scheme.onSurfaceVariant;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: (color ?? kHintGrey).withOpacity(0.15),
+        color: effective.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color ?? kHintGrey),
-          const SizedBox(width: 4),
+          Icon(icon, size: 12, color: effective),
+          const Gap(4),
           Text(
             label,
             style: TextStyle(
-              color: color ?? kHintGrey,
+              color: effective,
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -157,46 +204,5 @@ class CommuteCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Widget _buildStatusChip(String status) {
-    final color = _getStatusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        status.toUpperCase(),
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return kAccentGreen;
-      case 'pending':
-        return const Color(0xFFFFEA00);
-      case 'completed':
-        return Colors.blueAccent;
-      case 'cancelled':
-        return Colors.redAccent;
-      default:
-        return kHintGrey;
-    }
-  }
-
-  Color _getScoreColor(double score) {
-    if (score >= 90) return const Color(0xFF00E676);
-    if (score >= 70) return const Color(0xFFFFEA00);
-    return const Color(0xFFFF1744);
   }
 }

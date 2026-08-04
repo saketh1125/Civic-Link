@@ -1,16 +1,24 @@
 /// My Commutes Screen
 ///
-/// Shows user's commutes in tabs: My Offers / My Requests.
-/// Cancel button on each card with confirmation dialog.
+/// Tabs: My Offers / My Requests. Redesigned with shared CommuteCard,
+/// EmptyState and StatusChip widgets.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_colors.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
+import '../../core/design/app_status.dart';
 import '../../providers/commute_provider.dart';
 import '../widgets/auth_guard.dart';
 import '../widgets/commute_card.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/staggered_fade_in.dart';
+import '../widgets/status_chip.dart';
 import 'commute_detail_screen.dart';
 
 class MyCommutesScreen extends ConsumerStatefulWidget {
@@ -44,22 +52,25 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kSecondaryGrey,
-        title: const Text('Cancel Commute',
-            style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Are you sure you want to cancel this commute?',
-          style: TextStyle(color: Colors.white70),
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: context.colors.tertiary,
+          size: 32,
         ),
+        title: const Text('Cancel Commute'),
+        content:
+            const Text('Are you sure you want to cancel this commute?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('No', style: TextStyle(color: kHintGrey)),
+            child: const Text('No'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Yes, Cancel',
-                style: TextStyle(color: Colors.redAccent)),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.colors.error,
+            ),
+            child: const Text('Yes, Cancel'),
           ),
         ],
       ),
@@ -78,28 +89,11 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
       child: LoadingOverlay(
         isLoading: commuteState.isLoading,
         child: Scaffold(
-          backgroundColor: kPrimaryBlack,
           appBar: AppBar(
-            backgroundColor: kPrimaryBlack,
-            elevation: 0,
-            title: const Text(
-              'MY COMMUTES',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            title: const Text('MY COMMUTES'),
+            leading: const BackButton(),
             bottom: TabBar(
               controller: _tabController,
-              indicatorColor: kAccentGreen,
-              labelColor: kAccentGreen,
-              unselectedLabelColor: kHintGrey,
               tabs: const [
                 Tab(text: 'My Offers'),
                 Tab(text: 'My Requests'),
@@ -109,9 +103,7 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
           body: TabBarView(
             controller: _tabController,
             children: [
-              // My Offers tab
               _buildCommuteList(commuteState.commutes),
-              // My Requests tab
               _buildOffersList(commuteState.offers),
             ],
           ),
@@ -122,69 +114,64 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
 
   Widget _buildCommuteList(List<Commute> commutes) {
     if (commutes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.directions_car,
-                color: kHintGrey.withOpacity(0.3), size: 64),
-            const SizedBox(height: 16),
-            Text(
-              'No commutes yet',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Offer a ride to get started',
-              style: TextStyle(color: kHintGrey, fontSize: 13),
-            ),
-          ],
-        ),
+      return const EmptyState(
+        icon: Icons.directions_car_rounded,
+        title: 'No commutes yet',
+        message: 'Offer a ride to get started',
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.screenPaddingH),
       itemCount: commutes.length,
       itemBuilder: (context, index) {
         final commute = commutes[index];
-        return Column(
-          children: [
-            CommuteCard(
-              id: commute.id,
-              originAddress: commute.originAddress,
-              destinationAddress: commute.destinationAddress,
-              departureDate: commute.departureDate,
-              departureTime: commute.departureTime,
-              availableSeats: commute.availableSeats,
-              totalSeats: commute.totalSeats,
-              isWomenOnly: commute.isWomenOnly,
-              status: commute.status,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CommuteDetailScreen(commuteId: commute.id),
-                  ),
-                );
-              },
-            ),
-            if (commute.status.toLowerCase() == 'active')
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () => _cancelCommute(commute.id),
-                  icon: const Icon(Icons.cancel_outlined,
-                      color: Colors.redAccent, size: 16),
-                  label: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.redAccent, fontSize: 12),
+        return StaggeredFadeIn(
+          delay: Duration(milliseconds: 60 * index),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              CommuteCard(
+                id: commute.id,
+                originAddress: commute.originAddress,
+                destinationAddress: commute.destinationAddress,
+                departureDate: commute.departureDate,
+                departureTime: commute.departureTime,
+                availableSeats: commute.availableSeats,
+                totalSeats: commute.totalSeats,
+                isWomenOnly: commute.isWomenOnly,
+                status: commute.status,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          CommuteDetailScreen(commuteId: commute.id),
+                    ),
+                  );
+                },
+              ),
+              if (commute.status.toLowerCase() == 'active')
+                Padding(
+                  padding: const EdgeInsets.only(right: 4, top: 4),
+                  child: TextButton.icon(
+                    onPressed: () => _cancelCommute(commute.id),
+                    icon: Icon(
+                      Icons.cancel_outlined,
+                      color: context.colors.error,
+                      size: 16,
+                    ),
+                    label: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: context.colors.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -192,131 +179,143 @@ class _MyCommutesScreenState extends ConsumerState<MyCommutesScreen>
 
   Widget _buildOffersList(List<CommuteOffer> offers) {
     if (offers.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.directions_walk,
-                color: kHintGrey.withOpacity(0.3), size: 64),
-            const SizedBox(height: 16),
-            Text(
-              'No ride requests yet',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Search for commutes to request a ride',
-              style: TextStyle(color: kHintGrey, fontSize: 13),
-            ),
-          ],
-        ),
+      return const EmptyState(
+        icon: Icons.directions_walk_rounded,
+        title: 'No ride requests yet',
+        message: 'Search for commutes to request a ride',
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.screenPaddingH),
       itemCount: offers.length,
       itemBuilder: (context, index) {
         final offer = offers[index];
-        return Card(
-          color: kSecondaryGrey,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        return StaggeredFadeIn(
+          delay: Duration(milliseconds: 60 * index),
+          child: _OfferCard(offer: offer),
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// OFFER CARD — extracted from inline list-builder duplicate
+// =============================================================================
+
+class _OfferCard extends StatelessWidget {
+  const _OfferCard({required this.offer});
+
+  final CommuteOffer offer;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    final isDark = context.isDark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainer,
+          borderRadius: AppRadii.borderMd,
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.8),
           ),
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.directions_walk,
-                        color: kAccentGreen, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${offer.originAddress} → ${offer.destinationAddress}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                Icon(
+                  Icons.directions_walk_rounded,
+                  color: scheme.primary,
+                  size: 20,
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today,
-                        color: kHintGrey, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      offer.preferredDepartureDate,
-                      style: TextStyle(color: kHintGrey, fontSize: 13),
+                const Gap(10),
+                Expanded(
+                  child: Text(
+                    '${offer.originAddress} → ${offer.destinationAddress}',
+                    style: context.textTheme.titleSmall?.copyWith(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.access_time, color: kHintGrey, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      offer.preferredDepartureTime,
-                      style: TextStyle(color: kHintGrey, fontSize: 13),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: offer.status == 'pending'
-                            ? const Color(0xFFFFEA00).withOpacity(0.15)
-                            : kAccentGreen.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        offer.status.toUpperCase(),
-                        style: TextStyle(
-                          color: offer.status == 'pending'
-                              ? const Color(0xFFFFEA00)
-                              : kAccentGreen,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    if (offer.isWomenOnly) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.pinkAccent.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'WOMEN ONLY',
-                          style: TextStyle(
-                            color: Colors.pinkAccent,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
-          ),
-        );
-      },
+            const Gap(10),
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 14,
+                ),
+                const Gap(4),
+                Text(
+                  offer.preferredDepartureDate,
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const Gap(16),
+                Icon(
+                  Icons.access_time_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 14,
+                ),
+                const Gap(4),
+                Text(
+                  offer.preferredDepartureTime,
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const Gap(10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                StatusChip(
+                  status: civicStatusFromString(offer.status),
+                  compact: true,
+                ),
+                if (offer.isWomenOnly)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kSafetyPink.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: kSafetyPink.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: const Text(
+                      'WOMEN ONLY',
+                      style: TextStyle(
+                        color: kSafetyPink,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

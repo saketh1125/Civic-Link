@@ -1,11 +1,12 @@
 /// Loading Overlay Widget
 ///
-/// Full-screen semi-transparent overlay with centered spinner.
+/// Full-screen semi-transparent overlay with centered spinner and barrier.
 /// Used across all screens with async operations.
+library;
 
 import 'package:flutter/material.dart';
 
-import '../../main.dart';
+import '../../core/design/app_decoration.dart';
 
 class LoadingOverlay extends StatelessWidget {
   final bool isLoading;
@@ -21,24 +22,32 @@ class LoadingOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = context.colors;
+
     return Stack(
       children: [
         child,
         if (isLoading)
-          Container(
-            color: kPrimaryBlack.withOpacity(0.7),
+          Positioned.fill(
+            child: ModalBarrier(
+              color: scheme.surface.withValues(alpha: 0.75),
+              dismissible: false,
+            ),
+          ),
+        if (isLoading)
+          Positioned.fill(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(color: kAccentGreen),
+                  CircularProgressIndicator(color: scheme.primary),
                   if (message != null) ...[
                     const SizedBox(height: 16),
                     Text(
                       message!,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 14,
+                      style: context.textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ],

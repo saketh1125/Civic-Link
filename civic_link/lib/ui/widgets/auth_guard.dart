@@ -2,6 +2,7 @@
 ///
 /// Watches authProvider and redirects to login if not authenticated.
 /// Wraps all protected screens.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,9 +61,10 @@ class _AuthGuardState extends ConsumerState<AuthGuard> {
   Widget build(BuildContext context) {
     if (_checking) {
       return Scaffold(
-        backgroundColor: kPrimaryBlack,
         body: Center(
-          child: CircularProgressIndicator(color: kAccentGreen),
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       );
     }

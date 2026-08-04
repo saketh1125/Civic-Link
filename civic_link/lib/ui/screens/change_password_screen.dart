@@ -1,16 +1,24 @@
 /// Change Password Screen
 ///
-/// Allows authenticated user to change their password.
-/// Requires current password verification.
+/// Redesigned with shared PasswordField components, grouped card container,
+/// and clean error banner / success feedback.
+library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
+import 'package:gap/gap.dart';
 
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
 import '../../main.dart';
 import '../../providers/auth_provider.dart';
 import '../widgets/auth_guard.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/neon_button.dart';
+import '../widgets/password_field.dart';
+import '../widgets/section_header.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -26,9 +34,6 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String? _error;
-  bool _obscureCurrent = true;
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
 
   @override
   void dispose() {
@@ -84,9 +89,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password changed successfully'),
-          backgroundColor: Color(0xFF00E676),
+        SnackBar(
+          content: const Text('Password changed successfully'),
+          backgroundColor: context.colors.primary,
         ),
       );
       Navigator.of(context).pop();
@@ -110,163 +115,81 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   Widget build(BuildContext context) {
     return AuthGuard(
       child: Scaffold(
-        backgroundColor: kPrimaryBlack,
         appBar: AppBar(
-          backgroundColor: kPrimaryBlack,
-          elevation: 0,
-          title: const Text(
-            'CHANGE PASSWORD',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-            ),
-          ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+          title: const Text('CHANGE PASSWORD'),
+          leading: const BackButton(),
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppSpacing.screenPaddingH),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_error != null) ...[
                 ErrorBanner(
                   message: _error!,
                   onDismiss: () => setState(() => _error = null),
                 ),
-                const SizedBox(height: 16),
+                const Gap(AppSpacing.l),
               ],
 
-              Text(
-                'Enter your current password and a new password below.',
-                style: TextStyle(color: kHintGrey, fontSize: 14),
+              // ---- Section header -------------------------------------------
+              const SectionHeader(
+                'Security',
+                padding: EdgeInsets.only(top: 0, bottom: 12),
               ),
-              const SizedBox(height: 24),
 
-              // Current password
-              TextField(
-                controller: _currentPasswordController,
-                obscureText: _obscureCurrent,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  labelStyle: TextStyle(color: kHintGrey),
-                  prefixIcon:
-                      Icon(Icons.lock_outline, color: kHintGrey),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureCurrent
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: kHintGrey,
+              // ---- Card wrapper ------------------------------------------------
+              GlassCard(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Enter your current password and a new password below.',
+                      style: context.textTheme.bodyMedium?.copyWith(
+                        color: context.colors.onSurfaceVariant,
+                      ),
                     ),
-                    onPressed: () => setState(
-                        () => _obscureCurrent = !_obscureCurrent),
-                  ),
-                  filled: true,
-                  fillColor: kInputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+                    const Gap(AppSpacing.xxl),
+
+                    // Current password
+                    PasswordField(
+                      controller: _currentPasswordController,
+                      label: 'Current Password',
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.password],
+                    ),
+                    const Gap(AppSpacing.l),
+
+                    // New password
+                    PasswordField(
+                      controller: _newPasswordController,
+                      label: 'New Password',
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.newPassword],
+                    ),
+                    const Gap(AppSpacing.l),
+
+                    // Confirm password
+                    PasswordField(
+                      controller: _confirmPasswordController,
+                      label: 'Confirm New Password',
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.newPassword],
+                      onFieldSubmitted: (_) => _onChangePassword(),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
 
-              // New password
-              TextField(
-                controller: _newPasswordController,
-                obscureText: _obscureNew,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  labelStyle: TextStyle(color: kHintGrey),
-                  prefixIcon:
-                      Icon(Icons.lock_outline, color: kHintGrey),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureNew
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: kHintGrey,
-                    ),
-                    onPressed: () => setState(
-                        () => _obscureNew = !_obscureNew),
-                  ),
-                  filled: true,
-                  fillColor: kInputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const Gap(AppSpacing.xxl),
 
-              // Confirm password
-              TextField(
-                controller: _confirmPasswordController,
-                obscureText: _obscureConfirm,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
-                  labelStyle: TextStyle(color: kHintGrey),
-                  prefixIcon:
-                      Icon(Icons.lock_outline, color: kHintGrey),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirm
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: kHintGrey,
-                    ),
-                    onPressed: () => setState(
-                        () => _obscureConfirm = !_obscureConfirm),
-                  ),
-                  filled: true,
-                  fillColor: kInputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Submit button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onChangePassword,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccentGreen,
-                    foregroundColor: kPrimaryBlack,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: kPrimaryBlack,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'CHANGE PASSWORD',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                ),
+              // ---- Submit --------------------------------------------------------
+              NeonButton(
+                label: 'CHANGE PASSWORD',
+                icon: Icons.lock_reset_rounded,
+                isLoading: _isLoading,
+                onPressed: _onChangePassword,
               ),
             ],
           ),

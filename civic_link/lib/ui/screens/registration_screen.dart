@@ -2,13 +2,19 @@
 ///
 /// User registration form with Zero-Liability email hashing.
 /// Fields: full name, email, password, confirm password, phone, gender.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
 import '../../providers/auth_provider.dart';
+import '../widgets/auth_header.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/neon_button.dart';
+import '../widgets/password_field.dart';
 
 class RegistrationScreen extends ConsumerStatefulWidget {
   const RegistrationScreen({super.key});
@@ -64,9 +70,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
     if (result.isSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account created. Check your email to verify.'),
-          backgroundColor: Color(0xFF00E676),
+        SnackBar(
+          content: const Text('Account created. Check your email to verify.'),
+          backgroundColor: context.colors.primary,
         ),
       );
       Navigator.of(context).pop();
@@ -83,20 +89,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = context.colors;
+
     return Scaffold(
-      backgroundColor: kPrimaryBlack,
-      appBar: AppBar(
-        backgroundColor: kPrimaryBlack,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
+      appBar: AppBar(leading: const BackButton()),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.authPaddingH,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: Form(
@@ -104,35 +106,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header
-                    const Text(
-                      'CREATE ACCOUNT',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                      ),
+                    const Gap(AppSpacing.xxl),
+                    const AuthHeader(
+                      iconSize: 28,
+                      circleSize: 64,
+                      titleSize: 24,
+                      subtitle: 'Join the Civic-Link platform',
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Join the Civic-Link platform',
-                      style: TextStyle(
-                        color: kHintGrey,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
+                    const Gap(AppSpacing.xxl),
 
-                    // Full Name
+                    // ---- Full Name ----
                     TextFormField(
                       controller: _nameController,
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      autofillHints: const [AutofillHints.name],
+                      decoration: const InputDecoration(
                         labelText: 'Full Name',
-                        prefixIcon:
-                            const Icon(Icons.person_outline, color: kHintGrey),
+                        prefixIcon: Icon(Icons.person_outline_rounded),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
@@ -142,19 +132,18 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const Gap(AppSpacing.l),
 
-                    // Email
+                    // ---- Email ----
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
                         labelText: 'Email',
-                        prefixIcon: const Icon(Icons.alternate_email,
-                            color: kHintGrey),
                         hintText: 'user@cmrcet.ac.in',
+                        prefixIcon: Icon(Icons.alternate_email_rounded),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
@@ -167,19 +156,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const Gap(AppSpacing.l),
 
-                    // Password
-                    TextFormField(
+                    // ---- Password ----
+                    PasswordField(
                       controller: _passwordController,
-                      obscureText: true,
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon:
-                            const Icon(Icons.lock_outline, color: kHintGrey),
-                      ),
+                      autofillHints: const [AutofillHints.newPassword],
                       validator: (v) {
                         if (v == null || v.isEmpty) {
                           return 'Password is required';
@@ -188,19 +171,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const Gap(AppSpacing.l),
 
-                    // Confirm Password
-                    TextFormField(
+                    // ---- Confirm Password ----
+                    PasswordField(
                       controller: _confirmPasswordController,
-                      obscureText: true,
+                      label: 'Confirm Password',
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Confirm Password',
-                        prefixIcon:
-                            const Icon(Icons.lock_outline, color: kHintGrey),
-                      ),
+                      autofillHints: const [AutofillHints.newPassword],
                       validator: (v) {
                         if (v != _passwordController.text) {
                           return 'Passwords do not match';
@@ -208,19 +186,18 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const Gap(AppSpacing.l),
 
-                    // Phone
+                    // ---- Phone ----
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      decoration: const InputDecoration(
                         labelText: 'Phone Number',
-                        prefixIcon:
-                            const Icon(Icons.phone_outlined, color: kHintGrey),
                         hintText: '+91-98765-43210',
+                        prefixIcon: Icon(Icons.phone_outlined),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
@@ -229,69 +206,72 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const Gap(AppSpacing.l),
 
-                    // Gender Dropdown
+                    // ---- Gender ----
                     DropdownButtonFormField<String>(
-                      value: _selectedGender,
-                      dropdownColor: kSecondaryGrey,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
+                      initialValue: _selectedGender,
+                      decoration: const InputDecoration(
                         labelText: 'Gender',
-                        prefixIcon:
-                            const Icon(Icons.wc, color: kHintGrey),
+                        prefixIcon: Icon(Icons.wc_rounded),
                       ),
                       items: _genders
-                          .map((g) => DropdownMenuItem(
-                                value: g,
-                                child: Text(g[0].toUpperCase() + g.substring(1)),
-                              ))
+                          .map(
+                            (g) => DropdownMenuItem(
+                              value: g,
+                              child:
+                                  Text(g[0].toUpperCase() + g.substring(1)),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) {
                         if (v != null) setState(() => _selectedGender = v);
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const Gap(AppSpacing.l),
 
-                    // Error banner
+                    // ---- Error banner ----
                     if (_serverError != null) ...[
-                      ErrorBanner(message: _serverError!),
-                      const SizedBox(height: 16),
+                      ErrorBanner(
+                        message: _serverError!,
+                        onDismiss: () => setState(() => _serverError = null),
+                      ),
+                      const Gap(AppSpacing.l),
                     ],
 
-                    // Register button
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _onRegisterPressed,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  color: kPrimaryBlack,
-                                  strokeWidth: 2.5,
-                                ),
-                              )
-                            : const Text('CREATE ACCOUNT'),
-                      ),
+                    // ---- Register ----
+                    NeonButton(
+                      label: 'CREATE ACCOUNT',
+                      icon: Icons.person_add_rounded,
+                      isLoading: _isLoading,
+                      onPressed: _onRegisterPressed,
                     ),
-                    const SizedBox(height: 24),
+                    const Gap(AppSpacing.xl),
 
-                    // Link to login
+                    // ---- Login link ----
                     Center(
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Already have an account? Sign in',
-                          style: TextStyle(
-                            color: kAccentGreen,
-                            fontSize: 14,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text.rich(
+                          TextSpan(
+                            text: 'Already have an account? ',
+                            style: context.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Sign in',
+                                style: TextStyle(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const Gap(AppSpacing.xxl),
                   ],
                 ),
               ),

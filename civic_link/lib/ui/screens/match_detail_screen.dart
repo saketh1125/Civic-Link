@@ -1,16 +1,26 @@
 /// Match Detail Screen
 ///
-/// Shows match details with status-based action buttons.
+/// Themed detail view with status pill, route card, people cards, and
+/// status-dependent action area.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_colors.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
+import '../../core/design/app_status.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/match_provider.dart';
 import '../widgets/auth_guard.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/glass_card.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/neon_button.dart';
+import '../widgets/staggered_fade_in.dart';
+import '../widgets/status_chip.dart';
 import 'rating_screen.dart';
 
 class MatchDetailScreen extends ConsumerStatefulWidget {
@@ -51,10 +61,11 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
         .confirmMatch(widget.matchId);
     if (success && mounted) {
       await _loadMatch();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Match confirmed!'),
-          backgroundColor: Color(0xFF00E676),
+        SnackBar(
+          content: const Text('Match confirmed!'),
+          backgroundColor: context.colors.primary,
         ),
       );
     }
@@ -64,192 +75,177 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
   Widget build(BuildContext context) {
     final matchState = ref.watch(matchProvider);
     final authState = ref.read(authProvider);
+    final scheme = context.colors;
 
     return AuthGuard(
       child: LoadingOverlay(
         isLoading: _isLoading || matchState.isLoading,
         child: Scaffold(
-          backgroundColor: kPrimaryBlack,
           appBar: AppBar(
-            backgroundColor: kPrimaryBlack,
-            elevation: 0,
-            title: const Text(
-              'MATCH DETAILS',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            title: const Text('MATCH DETAILS'),
+            leading: const BackButton(),
           ),
           body: _match == null
               ? Center(
                   child: Text(
                     _error ?? 'Loading...',
-                    style: TextStyle(color: kHintGrey),
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenPaddingH,
+                    vertical: AppSpacing.screenPaddingV,
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Status badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(_match!.status)
-                              .withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _match!.status.toUpperCase(),
-                          style: TextStyle(
-                            color: _getStatusColor(_match!.status),
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.0,
-                          ),
+                      // ---- Status header ------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 0),
+                        child: _StatusHeader(status: _match!.status),
+                      ),
+
+                      const Gap(16),
+
+                      // ---- Route ----------------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 60),
+                        child: _RouteCard(
+                          origin: _match!.originAddress,
+                          destination: _match!.destinationAddress,
                         ),
                       ),
-                      const SizedBox(height: 20),
 
-                      // Route
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: kSecondaryGrey,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.location_on,
-                                    color: kAccentGreen, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _match!.originAddress,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 9),
-                              child: Container(
-                                width: 2,
-                                height: 20,
-                                color: kAccentGreen.withOpacity(0.3),
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Icon(Icons.location_on,
-                                    color: Colors.redAccent, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _match!.destinationAddress,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      const Gap(16),
 
-                      // People info
-                      Row(
-                        children: [
-                          _buildPersonCard(
-                            'Driver',
-                            _match!.driverName,
-                            Icons.drive_eta,
-                          ),
-                          const SizedBox(width: 12),
-                          _buildPersonCard(
-                            'Passenger',
-                            _match!.passengerName,
-                            Icons.person,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Pickup radius
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: kSecondaryGrey,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                      // ---- People ---------------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 120),
                         child: Row(
                           children: [
-                            Icon(Icons.near_me,
-                                color: kAccentGreen, size: 20),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Pickup radius: ${_match!.pickupRadiusMeters}m',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
+                            Expanded(
+                              child: _PersonCard(
+                                role: 'Driver',
+                                name: _match!.driverName,
+                                icon: Icons.drive_eta_rounded,
+                              ),
+                            ),
+                            const Gap(12),
+                            Expanded(
+                              child: _PersonCard(
+                                role: 'Passenger',
+                                name: _match!.passengerName,
+                                icon: Icons.directions_walk_rounded,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
 
-                      // Safety flags
-                      if (_match!.commuteWasWomenOnly)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.pinkAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
+                      const Gap(16),
+
+                      // ---- Pickup radius --------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 180),
+                        child: GlassCard(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.shield,
-                                  color: Colors.pinkAccent, size: 18),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Women-only commute',
-                                style: TextStyle(
-                                  color: Colors.pinkAccent,
-                                  fontSize: 13,
+                              Icon(
+                                Icons.near_me_rounded,
+                                color: scheme.primary,
+                                size: 20,
+                              ),
+                              const Gap(12),
+                              Expanded(
+                                child: Text(
+                                  'Pickup radius',
+                                  style: context.textTheme.bodyMedium
+                                      ?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${_match!.pickupRadiusMeters}m',
+                                style: context.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      if (_match!.commuteWasWomenOnly)
-                        const SizedBox(height: 16),
+                      ),
 
-                      // Error
-                      if (_error != null) ...[
-                        ErrorBanner(message: _error!),
-                        const SizedBox(height: 16),
+                      // ---- Safety banner ---------------------------------------------------
+                      if (_match!.commuteWasWomenOnly) ...[
+                        const Gap(16),
+                        StaggeredFadeIn(
+                          delay: const Duration(milliseconds: 220),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kSafetyPink.withValues(alpha: 0.10),
+                              borderRadius: AppRadii.borderMd,
+                              border: Border.all(
+                                color: kSafetyPink.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.shield_rounded,
+                                  color: kSafetyPink,
+                                  size: 18,
+                                ),
+                                const Gap(10),
+                                Text(
+                                  'Women-only commute',
+                                  style: context.textTheme.bodyMedium
+                                      ?.copyWith(
+                                    color: kSafetyPink,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
 
-                      // Action buttons based on status
-                      _buildActionButtons(authState.userId),
+                      // ---- Error banner ------------------------------------------------------
+                      if (_error != null) ...[
+                        const Gap(16),
+                        ErrorBanner(message: _error!),
+                      ],
+
+                      const Gap(24),
+
+                      // ---- Action ----------------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 260),
+                        child: _ActionArea(
+                          match: _match!,
+                          userId: authState.userId,
+                          isLoading: matchState.isLoading,
+                          onConfirm: _confirmMatch,
+                          onRate: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  RatingScreen(matchId: _match!.id),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -257,67 +253,205 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
       ),
     );
   }
+}
 
-  Widget _buildPersonCard(String role, String name, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kSecondaryGrey,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: kAccentGreen, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              role,
-              style: TextStyle(color: kHintGrey, fontSize: 11),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+// =============================================================================
+// STATUS HEADER
+// =============================================================================
+
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final civicStatus = civicStatusFromString(status);
+    return Row(
+      children: [
+        StatusChip(status: civicStatus, compact: false),
+        const Spacer(),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// ROUTE CARD
+// =============================================================================
+
+class _RouteCard extends StatelessWidget {
+  const _RouteCard({required this.origin, required this.destination});
+
+  final String origin;
+  final String destination;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return GlassCard(
+      child: Column(
+        children: [
+          _RoutePoint(
+            icon: Icons.trip_origin_rounded,
+            color: scheme.primary,
+            address: origin,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            child: Container(
+              width: 2,
+              height: 26,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    scheme.primary.withValues(alpha: 0.5),
+                    scheme.error.withValues(alpha: 0.5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(1),
               ),
-              textAlign: TextAlign.center,
             ),
-          ],
-        ),
+          ),
+          _RoutePoint(
+            icon: Icons.location_on_rounded,
+            color: scheme.error,
+            address: destination,
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildActionButtons(String? currentUserId) {
-    final isDriver = _match!.driverId == currentUserId;
+class _RoutePoint extends StatelessWidget {
+  const _RoutePoint({
+    required this.icon,
+    required this.color,
+    required this.address,
+  });
 
-    switch (_match!.status.toLowerCase()) {
+  final IconData icon;
+  final Color color;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 22),
+        const Gap(10),
+        Expanded(
+          child: Text(
+            address,
+            style: context.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// PERSON CARD
+// =============================================================================
+
+class _PersonCard extends StatelessWidget {
+  const _PersonCard({
+    required this.role,
+    required this.name,
+    required this.icon,
+  });
+
+  final String role;
+  final String name;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      child: Column(
+        children: [
+          Icon(icon, color: scheme.primary, size: 26),
+          const Gap(8),
+          Text(
+            role.toUpperCase(),
+            style: context.textTheme.labelSmall,
+          ),
+          const Gap(4),
+          Text(
+            name,
+            style: context.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// ACTION AREA
+// =============================================================================
+
+class _ActionArea extends StatelessWidget {
+  const _ActionArea({
+    required this.match,
+    required this.userId,
+    required this.isLoading,
+    required this.onConfirm,
+    required this.onRate,
+  });
+
+  final MatchDetail match;
+  final String? userId;
+  final bool isLoading;
+  final VoidCallback onConfirm;
+  final VoidCallback onRate;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    final isDriver = match.driverId == userId;
+
+    switch (match.status.toLowerCase()) {
       case 'pending':
         if (isDriver) {
-          return SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _confirmMatch,
-              child: const Text('CONFIRM MATCH'),
-            ),
+          return NeonButton(
+            label: 'CONFIRM MATCH',
+            icon: Icons.check_circle_outline_rounded,
+            isLoading: isLoading,
+            onPressed: onConfirm,
           );
         }
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: kSecondaryGrey,
-            borderRadius: BorderRadius.circular(12),
-          ),
+        return GlassCard(
+          padding: const EdgeInsets.all(20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.hourglass_empty, color: kHintGrey, size: 20),
-              const SizedBox(width: 8),
+              Icon(
+                Icons.hourglass_top_rounded,
+                color: scheme.onSurfaceVariant,
+                size: 20,
+              ),
+              const Gap(10),
               Text(
                 'Waiting for driver to confirm',
-                style: TextStyle(color: kHintGrey),
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -325,56 +459,46 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
 
       case 'confirmed':
         return Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: kAccentGreen.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            color: scheme.primary.withValues(alpha: 0.08),
+            borderRadius: AppRadii.borderMd,
+            border: Border.all(
+              color: scheme.primary.withValues(alpha: 0.3),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle, color: kAccentGreen, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Match confirmed! Trip starting soon.',
-                style: TextStyle(color: kAccentGreen),
+              Icon(
+                Icons.check_circle_rounded,
+                color: scheme.primary,
+                size: 20,
+              ),
+              const Gap(10),
+              Flexible(
+                child: Text(
+                  'Match confirmed! Trip starting soon.',
+                  style: context.textTheme.bodyMedium?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
           ),
         );
 
       case 'completed':
-        return SizedBox(
-          height: 52,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => RatingScreen(matchId: _match!.id),
-                ),
-              );
-            },
-            child: const Text('RATE THIS MATCH'),
-          ),
+        return NeonButton(
+          label: 'RATE THIS MATCH',
+          icon: Icons.star_outline_rounded,
+          onPressed: onRate,
         );
 
       default:
         return const SizedBox.shrink();
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return const Color(0xFFFFEA00);
-      case 'confirmed':
-        return kAccentGreen;
-      case 'completed':
-        return Colors.blueAccent;
-      case 'cancelled':
-        return Colors.redAccent;
-      default:
-        return kHintGrey;
     }
   }
 }

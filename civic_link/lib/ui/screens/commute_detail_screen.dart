@@ -1,17 +1,24 @@
 /// Commute Detail Screen
 ///
-/// Shows commute details with driver info and "Request Ride" action.
+/// Themed detail view with route card, info chips, driver block and action.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_colors.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
 import '../../providers/commute_provider.dart';
 import '../../providers/match_provider.dart';
 import '../widgets/auth_guard.dart';
 import '../widgets/civic_score_badge.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/glass_card.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/neon_button.dart';
+import '../widgets/staggered_fade_in.dart';
 
 class CommuteDetailScreen extends ConsumerStatefulWidget {
   final String commuteId;
@@ -55,9 +62,9 @@ class _CommuteDetailScreenState extends ConsumerState<CommuteDetailScreen> {
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ride request sent!'),
-          backgroundColor: Color(0xFF00E676),
+        SnackBar(
+          content: const Text('Ride request sent!'),
+          backgroundColor: context.colors.primary,
         ),
       );
       Navigator.of(context).pop();
@@ -72,209 +79,156 @@ class _CommuteDetailScreenState extends ConsumerState<CommuteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final matchState = ref.watch(matchProvider);
+    final scheme = context.colors;
 
     return AuthGuard(
       child: LoadingOverlay(
         isLoading: _isLoading || matchState.isLoading,
         child: Scaffold(
-          backgroundColor: kPrimaryBlack,
           appBar: AppBar(
-            backgroundColor: kPrimaryBlack,
-            elevation: 0,
-            title: const Text(
-              'COMMUTE DETAILS',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            title: const Text('COMMUTE DETAILS'),
+            leading: const BackButton(),
           ),
           body: _commute == null
               ? Center(
                   child: Text(
                     _error ?? 'Loading...',
-                    style: TextStyle(color: kHintGrey),
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenPaddingH,
+                    vertical: AppSpacing.screenPaddingV,
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Route
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: kSecondaryGrey,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.location_on,
-                                    color: kAccentGreen, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _commute!.originAddress,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 9),
-                              child: Container(
-                                width: 2,
-                                height: 24,
-                                color: kAccentGreen.withOpacity(0.3),
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Icon(Icons.location_on,
-                                    color: Colors.redAccent, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _commute!.destinationAddress,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                      // ---- Route --------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 0),
+                        child: _RouteCard(
+                          origin: _commute!.originAddress,
+                          destination: _commute!.destinationAddress,
                         ),
                       ),
-                      const SizedBox(height: 16),
 
-                      // Info cards
-                      Row(
-                        children: [
-                          _buildInfoCard(Icons.calendar_today,
-                              _commute!.departureDate),
-                          const SizedBox(width: 12),
-                          _buildInfoCard(
-                              Icons.access_time, _commute!.departureTime),
-                          const SizedBox(width: 12),
-                          _buildInfoCard(
-                              Icons.airline_seat_recline_normal,
-                              '${_commute!.availableSeats}/${_commute!.totalSeats} seats'),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+                      const Gap(16),
 
-                      // Driver info
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: kSecondaryGrey,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                      // ---- Info chips ----------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 80),
                         child: Row(
                           children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: kAccentGreen.withOpacity(0.15),
-                              ),
-                              child: Icon(Icons.person,
-                                  color: kAccentGreen, size: 24),
-                            ),
-                            const SizedBox(width: 12),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _commute!.driverName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    _commute!.driverGender.toUpperCase(),
-                                    style: TextStyle(
-                                      color: kHintGrey,
-                                      fontSize: 12,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                ],
+                              child: _InfoCard(
+                                icon: Icons.calendar_today_rounded,
+                                label: _commute!.departureDate,
                               ),
                             ),
-                            if (_commute!.driverScore != null)
-                              CivicScoreBadge(
-                                score: _commute!.driverScore!,
-                                size: CivicScoreBadgeSize.medium,
-                                showTier: true,
+                            const Gap(12),
+                            Expanded(
+                              child: _InfoCard(
+                                icon: Icons.access_time_rounded,
+                                label: _commute!.departureTime,
                               ),
+                            ),
+                            const Gap(12),
+                            Expanded(
+                              child: _InfoCard(
+                                icon: Icons.airline_seat_recline_normal_rounded,
+                                label:
+                                    '${_commute!.availableSeats}/${_commute!.totalSeats}',
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
 
-                      // Women only badge
-                      if (_commute!.isWomenOnly)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.pinkAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: Colors.pinkAccent.withOpacity(0.3)),
-                          ),
+                      const Gap(16),
+
+                      // ---- Driver -----------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 160),
+                        child: GlassCard(
                           child: Row(
                             children: [
-                              Icon(Icons.shield,
-                                  color: Colors.pinkAccent, size: 18),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Women-only commute',
-                                style: TextStyle(
-                                  color: Colors.pinkAccent,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color:
+                                      scheme.primary.withValues(alpha: 0.14),
+                                ),
+                                child: Icon(
+                                  Icons.person_rounded,
+                                  color: scheme.primary,
+                                  size: 26,
                                 ),
                               ),
+                              const Gap(12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _commute!.driverName,
+                                      style:
+                                          context.textTheme.titleSmall?.copyWith(
+                                        color: scheme.onSurface,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const Gap(2),
+                                    Text(
+                                      _commute!.driverGender.toUpperCase(),
+                                      style: context.textTheme.labelSmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_commute!.driverScore != null)
+                                CivicScoreBadge(
+                                  score: _commute!.driverScore!,
+                                  size: CivicScoreBadgeSize.medium,
+                                  showTier: true,
+                                ),
                             ],
                           ),
                         ),
-                      if (_commute!.isWomenOnly) const SizedBox(height: 16),
+                      ),
 
-                      // Error
-                      if (_error != null) ...[
-                        ErrorBanner(message: _error!),
-                        const SizedBox(height: 16),
+                      // ---- Safety banner --------------------------------------------
+                      if (_commute!.isWomenOnly) ...[
+                        const Gap(16),
+                        StaggeredFadeIn(
+                          delay: const Duration(milliseconds: 200),
+                          child: _SafetyBanner(
+                            icon: Icons.shield_rounded,
+                            message: 'Women-only commute',
+                          ),
+                        ),
                       ],
 
-                      // Request Ride button
-                      SizedBox(
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: matchState.isLoading ? null : _requestRide,
-                          child: const Text('REQUEST RIDE'),
+                      // ---- Error -----------------------------------------------------
+                      if (_error != null) ...[
+                        const Gap(16),
+                        ErrorBanner(message: _error!),
+                      ],
+
+                      const Gap(24),
+
+                      // ---- Action ------------------------------------------------------
+                      StaggeredFadeIn(
+                        delay: const Duration(milliseconds: 240),
+                        child: NeonButton(
+                          label: 'REQUEST RIDE',
+                          icon: Icons.hail_rounded,
+                          isLoading: matchState.isLoading,
+                          onPressed: _requestRide,
                         ),
                       ),
                     ],
@@ -284,26 +238,159 @@ class _CommuteDetailScreenState extends ConsumerState<CommuteDetailScreen> {
       ),
     );
   }
+}
 
-  Widget _buildInfoCard(IconData icon, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: kSecondaryGrey,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: kAccentGreen, size: 18),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-              textAlign: TextAlign.center,
+// =============================================================================
+// SUB-WIDGETS
+// =============================================================================
+
+/// Route visual with origin → connector → destination.
+class _RouteCard extends StatelessWidget {
+  const _RouteCard({required this.origin, required this.destination});
+
+  final String origin;
+  final String destination;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return GlassCard(
+      child: Column(
+        children: [
+          _RoutePoint(
+            icon: Icons.trip_origin_rounded,
+            color: scheme.primary,
+            address: origin,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            child: Container(
+              width: 2,
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    scheme.primary.withValues(alpha: 0.5),
+                    scheme.error.withValues(alpha: 0.5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(1),
+              ),
             ),
-          ],
+          ),
+          _RoutePoint(
+            icon: Icons.location_on_rounded,
+            color: scheme.error,
+            address: destination,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutePoint extends StatelessWidget {
+  const _RoutePoint({
+    required this.icon,
+    required this.color,
+    required this.address,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 22),
+        const Gap(10),
+        Expanded(
+          child: Text(
+            address,
+            style: context.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
+      ],
+    );
+  }
+}
+
+/// Small icon + label info tile.
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: AppRadii.borderMd,
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: scheme.primary, size: 18),
+          const Gap(6),
+          Text(
+            label,
+            style: context.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Safety / flag banner (e.g. women-only).
+class _SafetyBanner extends StatelessWidget {
+  const _SafetyBanner({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = kSafetyPink;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: AppRadii.borderMd,
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const Gap(10),
+          Text(
+            message,
+            style: context.textTheme.bodyMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

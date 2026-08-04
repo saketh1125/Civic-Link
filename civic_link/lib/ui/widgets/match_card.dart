@@ -2,10 +2,15 @@
 ///
 /// Card displaying match summary with status, route, and actions.
 /// Used by MyMatchesScreen.
+library;
 
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_colors.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_status.dart';
+import 'status_chip.dart';
 
 class MatchCard extends StatelessWidget {
   final String id;
@@ -35,133 +40,99 @@ class MatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: kSecondaryGrey,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.08),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            Row(
+    final scheme = context.colors;
+    final isDark = context.isDark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadii.borderMd,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: AppRadii.borderMd,
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.8),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // User avatar placeholder
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kAccentGreen.withOpacity(0.15),
-                  ),
-                  child: Icon(
-                    Icons.person,
-                    color: kAccentGreen,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        otherUserName ?? 'User',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                // Header row
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: scheme.primary.withValues(alpha: 0.15),
                       ),
-                      const SizedBox(height: 2),
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: scheme.primary,
+                        size: 20,
+                      ),
+                    ),
+                    const Gap(12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            otherUserName ?? 'User',
+                            style: context.textTheme.titleSmall?.copyWith(
+                              color: scheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Gap(2),
+                          Text(
+                            'Pickup radius: ${pickupRadiusMeters}m',
+                            style: context.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    StatusChip(status: civicStatusFromString(status)),
+                  ],
+                ),
+                if (commuteWasWomenOnly) ...[
+                  const Gap(8),
+                  Row(
+                    children: [
+                      const Icon(Icons.shield_rounded,
+                          color: kSafetyPink, size: 14),
+                      const Gap(4),
                       Text(
-                        'Pickup radius: ${pickupRadiusMeters}m',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 12,
+                        'Women-only commute',
+                        style: context.textTheme.labelSmall?.copyWith(
+                          color: kSafetyPink,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                ),
-                _buildStatusChip(status),
-              ],
-            ),
-            if (commuteWasWomenOnly) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.shield, color: Colors.pinkAccent, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Women-only commute',
-                    style: TextStyle(
-                      color: Colors.pinkAccent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                ],
+                if (actions != null && actions!.isNotEmpty) ...[
+                  const Gap(12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: actions!,
                   ),
                 ],
-              ),
-            ],
-            if (actions != null && actions!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: actions!
-                    .map((a) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: a,
-                        ))
-                    .toList(),
-              ),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
-  }
-
-  Widget _buildStatusChip(String status) {
-    final color = _getStatusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        status.toUpperCase(),
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return const Color(0xFFFFEA00);
-      case 'confirmed':
-        return kAccentGreen;
-      case 'in_progress':
-        return Colors.blueAccent;
-      case 'completed':
-        return Colors.greenAccent;
-      case 'cancelled':
-        return Colors.redAccent;
-      default:
-        return kHintGrey;
-    }
   }
 }

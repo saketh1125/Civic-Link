@@ -1,22 +1,23 @@
 /// Real-Time Civic Score Dashboard
 ///
-/// Professional law enforcement interface displaying the Civic Score
-/// with animated transitions and a tactical line chart. Designed for
-/// high-contrast visibility in vehicle-mounted devices.
-///
-/// Features:
-/// - Massive central score display with 300ms lerp animation
-/// - Color-coded thresholds (Green/Yellow/Red)
-/// - Smooth spline chart showing 20-point history
-/// - Deep black tactical aesthetic
+/// Redesigned around the design system: gradient ScoreRing, shared line
+/// chart, glass-tinted quick actions, and staggered entrances.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:gap/gap.dart';
 
-import '../../providers/civic_score_provider.dart';
-import '../../providers/auth_provider.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_text_styles.dart';
 import '../../main.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/civic_score_provider.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/score_line_chart.dart';
+import '../widgets/score_ring.dart';
+import '../widgets/section_header.dart';
+import '../widgets/staggered_fade_in.dart';
 import 'commute_create_screen.dart';
 import 'commute_search_screen.dart';
 import 'my_commutes_screen.dart';
@@ -28,10 +29,6 @@ import 'settings_screen.dart';
 // DASHBOARD SCREEN
 // =============================================================================
 
-/// Main dashboard screen for Civic Score monitoring.
-///
-/// Displays the current score with animated transitions and a
-/// historical trend chart. Optimized for quick glances during patrol.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -55,7 +52,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         return;
       }
 
-      final valid = await ref.read(authProvider.notifier).checkSessionValidity();
+      final valid =
+          await ref.read(authProvider.notifier).checkSessionValidity();
       if (!valid) {
         if (!mounted) return;
         ref.read(authProvider.notifier).logout();
@@ -78,409 +76,226 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final scoreState = ref.watch(civicScoreProvider);
 
     return Scaffold(
-      backgroundColor: kDashboardBackground,
       body: SafeArea(
-        child: Column(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Gap(12),
+              _Header(),
+              const Gap(16),
+              _ScoreSection(score: scoreState.currentScore),
+              const Gap(24),
+              _HistorySection(history: scoreState.scoreHistory),
+              const Gap(20),
+              const _QuickActions(),
+              const Gap(20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// HEADER
+// =============================================================================
+
+class _Header extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
           children: [
-            // Header
-            _buildHeader(),
-
-            // Main Score Display
-            Expanded(
-              flex: 3,
-              child: _buildScoreDisplay(scoreState),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
-
-            // Chart Section
-            Expanded(
-              flex: 2,
-              child: _buildChartSection(scoreState),
-            ),
-
-            // Quick Action Buttons
-            _buildQuickActions(context),
-
-            // Bottom padding
-            const SizedBox(height: 20),
+            const Gap(12),
+            Text('CIVIC SCORE', style: screenTitle(scheme)),
           ],
         ),
-      ),
-    );
-  }
-
-  /// Builds the screen header with title and action buttons.
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: kCivicScoreGreen,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Profile',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'CIVIC SCORE',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 2.0,
-                ),
+              icon: Icon(
+                Icons.person_outline_rounded,
+                color: scheme.onSurfaceVariant,
               ),
-            ],
-          ),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const ProfileScreen()),
-                  );
-                },
-                icon: Icon(Icons.person_outline, color: kHintGrey, size: 22),
-              ),
-              IconButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const SettingsScreen()),
-                  );
-                },
-                icon:
-                    Icon(Icons.settings_outlined, color: kHintGrey, size: 22),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Builds the central animated score display.
-  Widget _buildScoreDisplay(CivicScoreState scoreState) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Animated Score Number
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(
-              begin: scoreState.currentScore,
-              end: scoreState.currentScore,
             ),
-            duration: const Duration(milliseconds: 300),
-            builder: (context, value, child) {
-              return Text(
-                value.toStringAsFixed(1),
-                style: TextStyle(
-                  color: scoreState.scoreColor,
-                  fontSize: 120,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'RobotoMono',
-                  letterSpacing: -2,
-                  shadows: [
-                    Shadow(
-                      color: scoreState.scoreColor.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 8),
-
-          // Status Label
-          Text(
-            scoreState.scoreStatus,
-            style: TextStyle(
-              color: scoreState.scoreColor,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 3.0,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Score Bar Indicator
-          _buildScoreBar(scoreState),
-        ],
-      ),
-    );
-  }
-
-  /// Builds a horizontal bar indicator showing score position.
-  Widget _buildScoreBar(CivicScoreState scoreState) {
-    return Container(
-      width: 200,
-      height: 6,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: scoreState.currentScore / 100.0,
-        child: Container(
-          decoration: BoxDecoration(
-            color: scoreState.scoreColor,
-            borderRadius: BorderRadius.circular(3),
-            boxShadow: [
-              BoxShadow(
-                color: scoreState.scoreColor.withOpacity(0.5),
-                blurRadius: 8,
-                offset: const Offset(0, 0),
+            IconButton(
+              tooltip: 'Settings',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
               ),
-            ],
-          ),
+              icon: Icon(
+                Icons.settings_outlined,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// SCORE SECTION
+// =============================================================================
+
+class _ScoreSection extends StatelessWidget {
+  const _ScoreSection({required this.score});
+
+  final double score;
+
+  @override
+  Widget build(BuildContext context) {
+    return StaggeredFadeIn(
+      delay: const Duration(milliseconds: 100),
+      child: Center(
+        child: ScoreRing(score: score, size: 260, strokeWidth: 14),
       ),
     );
   }
+}
 
-  /// Builds the chart section with line chart.
-  Widget _buildChartSection(CivicScoreState scoreState) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+// =============================================================================
+// HISTORY SECTION
+// =============================================================================
+
+class _HistorySection extends StatelessWidget {
+  const _HistorySection({required this.history});
+
+  final List<double> history;
+
+  @override
+  Widget build(BuildContext context) {
+    return StaggeredFadeIn(
+      delay: const Duration(milliseconds: 250),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Chart Label
-          Padding(
-            padding: const EdgeInsets.only(left: 8, bottom: 12),
-            child: Text(
-              'HISTORY',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.5,
-              ),
+          const SectionHeader('History'),
+          const Gap(8),
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              height: 180,
+              child: ScoreLineChart(history: history, showAxisLabels: true),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
 
-          // Chart Container
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.02),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.08),
-                  width: 1,
+// =============================================================================
+// QUICK ACTIONS
+// =============================================================================
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+
+  static const _destinations = <({Widget screen, IconData icon, String label})>[
+    (screen: CommuteSearchScreen(), icon: Icons.search_rounded, label: 'Find Ride'),
+    (screen: CommuteCreateScreen(), icon: Icons.add_road_rounded, label: 'Offer Ride'),
+    (screen: MyCommutesScreen(), icon: Icons.directions_car_rounded, label: 'My Commutes'),
+    (screen: MyMatchesScreen(), icon: Icons.handshake_rounded, label: 'My Matches'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader('Quick Actions'),
+        const Gap(8),
+        Row(
+          children: List.generate(_destinations.length, (index) {
+            final d = _destinations[index];
+            return Expanded(
+              child: StaggeredFadeIn(
+                delay: Duration(milliseconds: 350 + index * 60),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: index == _destinations.length - 1 ? 0 : 12,
+                  ),
+                  child: _ActionTile(
+                    icon: d.icon,
+                    label: d.label,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => d.screen),
+                    ),
+                  ),
                 ),
               ),
-              padding: const EdgeInsets.all(16),
-              child: _buildLineChart(scoreState),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Builds the fl_chart LineChart widget.
-  Widget _buildLineChart(CivicScoreState scoreState) {
-    // Convert history to FlSpot list (reversed for left-to-right timeline)
-    final spots = scoreState.scoreHistory.reversed.toList().asMap().entries.map(
-      (entry) {
-        return FlSpot(entry.key.toDouble(), entry.value);
-      },
-    ).toList();
-
-    // If no history, show empty state
-    if (spots.isEmpty) {
-      return Center(
-        child: Text(
-          'COLLECTING DATA...',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.3),
-            fontSize: 12,
-            letterSpacing: 1.0,
-          ),
+            );
+          }),
         ),
-      );
-    }
-
-    return LineChart(
-      LineChartData(
-        // Fixed Y-axis range: 0 to 100
-        minY: 0,
-        maxY: 100,
-
-        // Grid configuration: completely hidden for tactical look
-        gridData: const FlGridData(show: false),
-
-        // Border configuration: minimal
-        borderData: FlBorderData(show: false),
-
-        // X-axis: hidden (no labels, no titles)
-        titlesData: FlTitlesData(
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 32,
-              interval: 50,
-              getTitlesWidget: (value, meta) {
-                // Only show 0, 50, 100
-                if (value == 0 || value == 50 || value == 100) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                      value.toInt().toString(),
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          bottomTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-        ),
-
-        // Chart line configuration
-        lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            curveSmoothness: 0.35,
-            color: scoreState.scoreColor,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: const FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  scoreState.scoreColor.withOpacity(0.3),
-                  scoreState.scoreColor.withOpacity(0.0),
-                ],
-              ),
-            ),
-          ),
-        ],
-
-        // Interaction: disabled for read-only dashboard
-        lineTouchData: const LineTouchData(enabled: false),
-      ),
+      ],
     );
   }
+}
 
-  /// Builds quick action buttons below the chart.
-  Widget _buildQuickActions(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        children: [
-          _buildActionButton(
-            context,
-            icon: Icons.search,
-            label: 'Find Ride',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const CommuteSearchScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          _buildActionButton(
-            context,
-            icon: Icons.add_road,
-            label: 'Offer Ride',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const CommuteCreateScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          _buildActionButton(
-            context,
-            icon: Icons.directions_car,
-            label: 'My Commutes',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const MyCommutesScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          _buildActionButton(
-            context,
-            icon: Icons.handshake,
-            label: 'My Matches',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const MyMatchesScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
-  Widget _buildActionButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: onTap,
+        borderRadius: AppRadii.borderMd,
+        splashColor: scheme.primary.withValues(alpha: 0.1),
+        highlightColor: scheme.primary.withValues(alpha: 0.05),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
           decoration: BoxDecoration(
-            color: kAccentGreen.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            color: scheme.primary.withValues(alpha: 0.08),
+            borderRadius: AppRadii.borderMd,
             border: Border.all(
-              color: kAccentGreen.withOpacity(0.2),
+              color: scheme.primary.withValues(alpha: 0.25),
             ),
           ),
           child: Column(
             children: [
-              Icon(icon, color: kAccentGreen, size: 24),
-              const SizedBox(height: 6),
+              Icon(icon, color: scheme.primary, size: 26),
+              const Gap(8),
               Text(
                 label,
-                style: TextStyle(
-                  color: kAccentGreen,
-                  fontSize: 11,
+                style: context.textTheme.labelSmall?.copyWith(
+                  color: scheme.primary,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

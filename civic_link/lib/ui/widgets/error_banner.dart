@@ -2,73 +2,98 @@
 ///
 /// Colored banner for displaying error, warning, or info messages.
 /// Used across all screens with form submission or API calls.
+library;
 
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
 
-enum ErrorType { error, warning, info }
+import '../../core/design/app_decoration.dart';
+
+enum BannerKind { error, warning, info, success }
+
+/// Deprecated alias kept for call-site compatibility during migration.
+@Deprecated('Use BannerKind instead')
+typedef ErrorType = BannerKind;
 
 class ErrorBanner extends StatelessWidget {
   final String message;
   final VoidCallback? onDismiss;
-  final ErrorType type;
+  final BannerKind type;
 
   const ErrorBanner({
     super.key,
     required this.message,
     this.onDismiss,
-    this.type = ErrorType.error,
+    this.type = BannerKind.error,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = _getColors();
+    final scheme = context.colors;
+    final (bg, fg, icon) = _resolveColors(scheme);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.$1,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.$2),
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: fg.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
-          Icon(colors.$3, color: colors.$2, size: 20),
-          const SizedBox(width: 10),
+          Icon(icon, color: fg, size: 20),
+          const Gap(10),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: colors.$2, fontSize: 13),
+              style: context.textTheme.bodySmall?.copyWith(
+                color: fg,
+                fontSize: 13,
+                height: 1.35,
+              ),
             ),
           ),
           if (onDismiss != null)
-            GestureDetector(
+            InkWell(
               onTap: onDismiss,
-              child: Icon(Icons.close, color: colors.$2, size: 18),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.close_rounded, color: fg, size: 18),
+              ),
             ),
         ],
       ),
     );
   }
 
-  (Color, Color, IconData) _getColors() {
+  (Color, Color, IconData) _resolveColors(ColorScheme scheme) {
     switch (type) {
-      case ErrorType.error:
+      case BannerKind.error:
         return (
-          Colors.red.shade900.withOpacity(0.3),
-          Colors.redAccent,
-          Icons.error_outline,
+          scheme.errorContainer.withValues(alpha: 0.5),
+          scheme.error,
+          Icons.error_outline_rounded,
         );
-      case ErrorType.warning:
+      case BannerKind.warning:
         return (
-          Colors.orange.shade900.withOpacity(0.3),
-          Colors.orangeAccent,
-          Icons.warning_amber,
+          scheme.tertiaryContainer.withValues(alpha: 0.4),
+          scheme.tertiary,
+          Icons.warning_amber_rounded,
         );
-      case ErrorType.info:
+      case BannerKind.info:
         return (
-          Colors.blue.shade900.withOpacity(0.3),
-          Colors.blueAccent,
-          Icons.info_outline,
+          scheme.secondaryContainer.withValues(alpha: 0.4),
+          scheme.primary,
+          Icons.info_outline_rounded,
+        );
+      case BannerKind.success:
+        return (
+          scheme.primaryContainer.withValues(alpha: 0.4),
+          scheme.primary,
+          Icons.check_circle_outline_rounded,
         );
     }
   }

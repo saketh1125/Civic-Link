@@ -1,19 +1,27 @@
 /// Profile Screen
 ///
-/// Shows user profile with avatar, civic score, edit form, and stats.
-/// Wrapped in AuthGuard.
+/// Rebuilt on the design system — GlassCards, shared ScoreLineChart and
+/// CivicScoreBadge, themed inputs and buttons.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:gap/gap.dart';
 
-import '../../main.dart';
+import '../../core/design/app_colors.dart';
+import '../../core/design/app_decoration.dart';
+import '../../core/design/app_spacing.dart';
 import '../../providers/civic_score_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../widgets/auth_guard.dart';
 import '../widgets/civic_score_badge.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/glass_card.dart';
 import '../widgets/loading_overlay.dart';
+import '../widgets/neon_button.dart';
+import '../widgets/score_line_chart.dart';
+import '../widgets/section_header.dart';
+import '../widgets/staggered_fade_in.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -58,9 +66,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!mounted) return;
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated!'),
-          backgroundColor: Color(0xFF00E676),
+        SnackBar(
+          content: const Text('Profile updated!'),
+          backgroundColor: context.colors.primary,
         ),
       );
     }
@@ -70,89 +78,76 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(profileProvider);
     final scoreState = ref.watch(civicScoreProvider);
-
     _initControllers(profile);
 
     return AuthGuard(
       child: LoadingOverlay(
         isLoading: profile.isLoading,
         child: Scaffold(
-          backgroundColor: kPrimaryBlack,
           appBar: AppBar(
-            backgroundColor: kPrimaryBlack,
-            elevation: 0,
-            title: const Text(
-              'PROFILE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            title: const Text('PROFILE'),
+            leading: const BackButton(),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenPaddingH,
+              vertical: AppSpacing.screenPaddingV,
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Error banner
+                // ---- Error banner ------------------------------------------------
                 if (profile.error != null) ...[
                   ErrorBanner(
                     message: profile.error!,
                     onDismiss: () =>
                         ref.read(profileProvider.notifier).clearError(),
                   ),
-                  const SizedBox(height: 16),
+                  const Gap(20),
                 ],
 
-                // Avatar
-                _buildAvatar(profile.name ?? 'U'),
-                const SizedBox(height: 16),
-
-                // Name
-                Text(
-                  profile.name ?? 'User',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
+                // ---- Identity block ----------------------------------------------
+                StaggeredFadeIn(
+                  delay: const Duration(milliseconds: 0),
+                  child: _IdentityBlock(
+                    name: profile.name ?? 'User',
+                    email: profile.email ?? '',
+                    verificationStatus: profile.verificationStatus,
                   ),
                 ),
-                const SizedBox(height: 4),
 
-                // Email domain (read-only)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.lock, color: kHintGrey, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      profile.email ?? '',
-                      style: TextStyle(color: kHintGrey, fontSize: 14),
-                    ),
-                  ],
+                const Gap(28),
+
+                // ---- Score block --------------------------------------------------
+                StaggeredFadeIn(
+                  delay: const Duration(milliseconds: 100),
+                  child: _ScoreBlock(score: scoreState.currentScore,
+                      history: scoreState.scoreHistory),
                 ),
-                const SizedBox(height: 8),
 
-                // Verification badge
-                _buildVerificationBadge(profile.verificationStatus),
-                const SizedBox(height: 32),
+                const Gap(20),
 
-                // Civic Score Section
-                _buildScoreSection(scoreState),
-                const SizedBox(height: 32),
+                // ---- Edit section ------------------------------------------------
+                StaggeredFadeIn(
+                  delay: const Duration(milliseconds: 200),
+                  child: _EditBlock(
+                    nameController: _nameController,
+                    phoneController: _phoneController,
+                    isSaving: profile.isSaving,
+                    onSave: _onSave,
+                  ),
+                ),
 
-                // Edit Profile Section
-                _buildEditSection(profile),
-                const SizedBox(height: 32),
+                const Gap(20),
 
-                // Stats Section
-                _buildStatsSection(scoreState),
+                // ---- Stats section ------------------------------------------------
+                StaggeredFadeIn(
+                  delay: const Duration(milliseconds: 300),
+                  child: _StatsBlock(
+                    totalTrips: scoreState.scoreHistory.length,
+                  ),
+                ),
+
+                const Gap(24),
               ],
             ),
           ),
@@ -160,282 +155,289 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
   }
+}
 
-  Widget _buildAvatar(String name) {
+// =============================================================================
+// IDENTITY BLOCK
+// =============================================================================
+
+class _IdentityBlock extends StatelessWidget {
+  const _IdentityBlock({
+    required this.name,
+    required this.email,
+    required this.verificationStatus,
+  });
+
+  final String name;
+  final String email;
+  final String? verificationStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: kAccentGreen.withOpacity(0.15),
-        border: Border.all(color: kAccentGreen, width: 2),
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            color: kAccentGreen,
-            fontSize: 32,
-            fontWeight: FontWeight.w700,
+    final isVerified = verificationStatus == 'verified';
+    final verifColor =
+        isVerified ? scheme.primary : kScoreWarning;
+
+    return Column(
+      children: [
+        // Avatar
+        Container(
+          width: 92,
+          height: 92,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: scheme.primary.withValues(alpha: 0.12),
+            border: Border.all(
+              color: scheme.primary.withValues(alpha: 0.5),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withValues(alpha: 0.25),
+                blurRadius: 24,
+                spreadRadius: -6,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              initial,
+              style: TextStyle(
+                color: scheme.primary,
+                fontSize: 40,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
-      ),
-    );
-  }
+        const Gap(16),
 
-  Widget _buildVerificationBadge(String? status) {
-    final isVerified = status == 'verified';
-    final color = isVerified ? kAccentGreen : const Color(0xFFFFEA00);
-    final label = isVerified ? 'VERIFIED' : 'PENDING';
+        // Name
+        Text(
+          name,
+          style: context.textTheme.headlineMedium,
+        ),
+        const Gap(4),
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isVerified ? Icons.verified : Icons.hourglass_empty,
-            color: color,
-            size: 14,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
+        // Email (read-only)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_rounded,
+                color: scheme.onSurfaceVariant, size: 14),
+            const Gap(4),
+            Text(
+              email,
+              style: context.textTheme.bodySmall,
+            ),
+          ],
+        ),
+        const Gap(10),
+
+        // Verification badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: verifColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: verifColor.withValues(alpha: 0.4),
             ),
           ),
-        ],
-      ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isVerified
+                    ? Icons.verified_rounded
+                    : Icons.hourglass_top_rounded,
+                color: verifColor,
+                size: 14,
+              ),
+              const Gap(6),
+              Text(
+                isVerified ? 'VERIFIED' : 'PENDING',
+                style: TextStyle(
+                  color: verifColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
+}
 
-  Widget _buildScoreSection(CivicScoreState scoreState) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: kSecondaryGrey,
-        borderRadius: BorderRadius.circular(16),
-      ),
+// =============================================================================
+// SCORE BLOCK
+// =============================================================================
+
+class _ScoreBlock extends StatelessWidget {
+  const _ScoreBlock({required this.score, required this.history});
+
+  final double score;
+  final List<double> history;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
       child: Column(
         children: [
-          Text(
-            'CIVIC SCORE',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SectionHeader('Civic Score', padding: EdgeInsets.zero),
+          const Gap(12),
           CivicScoreBadge(
-            score: scoreState.currentScore,
+            score: score,
             size: CivicScoreBadgeSize.large,
             showTier: true,
           ),
-          const SizedBox(height: 20),
-          // Score history chart
+          const Gap(20),
           SizedBox(
             height: 100,
-            child: _buildScoreChart(scoreState),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScoreChart(CivicScoreState scoreState) {
-    final spots = scoreState.scoreHistory.reversed.toList().asMap().entries.map(
-      (entry) {
-        return FlSpot(entry.key.toDouble(), entry.value);
-      },
-    ).toList();
-
-    if (spots.isEmpty) {
-      return Center(
-        child: Text(
-          'Take your first trip to see your score history',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.3),
-            fontSize: 12,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    return LineChart(
-      LineChartData(
-        minY: 0,
-        maxY: 100,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: const FlTitlesData(show: false),
-        lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            curveSmoothness: 0.35,
-            color: scoreState.scoreColor,
-            barWidth: 2,
-            isStrokeCapRound: true,
-            dotData: const FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  scoreState.scoreColor.withOpacity(0.3),
-                  scoreState.scoreColor.withOpacity(0.0),
-                ],
-              ),
-            ),
-          ),
-        ],
-        lineTouchData: const LineTouchData(enabled: false),
-      ),
-    );
-  }
-
-  Widget _buildEditSection(ProfileState profile) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: kSecondaryGrey,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'EDIT PROFILE',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Name field
-          TextField(
-            controller: _nameController,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: 'Name',
-              labelStyle: TextStyle(color: kHintGrey),
-              prefixIcon: Icon(Icons.person_outline, color: kHintGrey),
-              filled: true,
-              fillColor: kInputFill,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Phone field
-          TextField(
-            controller: _phoneController,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: 'Phone',
-              labelStyle: TextStyle(color: kHintGrey),
-              prefixIcon: Icon(Icons.phone_outlined, color: kHintGrey),
-              filled: true,
-              fillColor: kInputFill,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Save button
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: profile.isSaving ? null : _onSave,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kAccentGreen,
-                foregroundColor: kPrimaryBlack,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: profile.isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: kPrimaryBlack,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text(
-                      'SAVE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                      ),
+            child: history.isEmpty
+                ? Center(
+                    child: Text(
+                      'Take your first trip to see your score history',
+                      style: context.textTheme.bodySmall,
+                      textAlign: TextAlign.center,
                     ),
-            ),
+                  )
+                : ScoreLineChart(history: history, showAxisLabels: false),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildStatsSection(CivicScoreState scoreState) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: kSecondaryGrey,
-        borderRadius: BorderRadius.circular(16),
-      ),
+// =============================================================================
+// EDIT BLOCK
+// =============================================================================
+
+class _EditBlock extends StatelessWidget {
+  const _EditBlock({
+    required this.nameController,
+    required this.phoneController,
+    required this.isSaving,
+    required this.onSave,
+  });
+
+  final TextEditingController nameController;
+  final TextEditingController phoneController;
+  final bool isSaving;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'STATS',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
+          const SectionHeader('Edit Profile', padding: EdgeInsets.zero),
+          const Gap(16),
+          TextFormField(
+            controller: nameController,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.name],
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              prefixIcon: Icon(Icons.person_outline_rounded),
             ),
           ),
-          const SizedBox(height: 12),
-          _buildStatRow('Total trips', '${scoreState.scoreHistory.length}'),
+          const Gap(12),
+          TextFormField(
+            controller: phoneController,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.telephoneNumber],
+            decoration: const InputDecoration(
+              labelText: 'Phone',
+              prefixIcon: Icon(Icons.phone_outlined),
+            ),
+          ),
+          const Gap(16),
+          NeonButton(
+            label: 'SAVE CHANGES',
+            icon: Icons.save_outlined,
+            isLoading: isSaving,
+            onPressed: onSave,
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildStatRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+// =============================================================================
+// STATS BLOCK
+// =============================================================================
+
+class _StatsBlock extends StatelessWidget {
+  const _StatsBlock({required this.totalTrips});
+
+  final int totalTrips;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: TextStyle(color: kHintGrey, fontSize: 14)),
+          const SectionHeader('Stats', padding: EdgeInsets.zero),
+          const Gap(4),
+          _StatRow(
+            label: 'Trips tracked',
+            value: '$totalTrips',
+            icon: Icons.route_rounded,
+            iconColor: scheme.primary,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: iconColor),
+          const Gap(12),
+          Expanded(
+            child: Text(
+              label,
+              style: context.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+            style: context.textTheme.titleSmall?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

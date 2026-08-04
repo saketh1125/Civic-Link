@@ -22,23 +22,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/design/app_colors.dart';
 import '../services/telemetry_isolate.dart';
 
 // =============================================================================
-// COLOR CONSTANTS - High-contrast law enforcement palette
+// COLOR CONSTANTS — RE-EXPORTS FOR BACKWARDS COMPATIBILITY
 // =============================================================================
+// These were previously defined here; they've been moved to the design-system
+// file at lib/core/design/app_colors.dart. Re-exported so existing callers
+// that import this provider don't break.
 
-/// Neon Green - Safe/Cruising state (score >= 90)
-const Color kCivicScoreGreen = Color(0xFF00E676);
-
-/// Warning Yellow - Caution state (score >= 70, < 90)
-const Color kCivicScoreYellow = Color(0xFFFFEA00);
-
-/// Alert Red - Danger state (score < 70)
-const Color kCivicScoreRed = Color(0xFFFF1744);
-
-/// Deep Black - Dashboard background
-const Color kDashboardBackground = Color(0xFF0A0A0A);
+export '../core/design/app_colors.dart'
+    show
+        kCivicScoreGreen,
+        kCivicScoreYellow,
+        kCivicScoreRed,
+        kDashboardBackground,
+        scoreTierColor,
+        scoreTierLabel;
 
 // =============================================================================
 // STATE MODEL
@@ -63,26 +64,10 @@ class CivicScoreState {
   }
 
   /// Returns the color based on current score threshold.
-  Color get scoreColor {
-    if (currentScore >= 90.0) {
-      return kCivicScoreGreen;
-    } else if (currentScore >= 70.0) {
-      return kCivicScoreYellow;
-    } else {
-      return kCivicScoreRed;
-    }
-  }
+  Color get scoreColor => scoreTierColor(currentScore);
 
   /// Returns the status label based on current score threshold.
-  String get scoreStatus {
-    if (currentScore >= 90.0) {
-      return 'CRUISING';
-    } else if (currentScore >= 70.0) {
-      return 'WARNING';
-    } else {
-      return 'ALERT';
-    }
-  }
+  String get scoreStatus => scoreTierLabel(currentScore);
 
   /// Creates a copy with optionally updated fields.
   CivicScoreState copyWith({
