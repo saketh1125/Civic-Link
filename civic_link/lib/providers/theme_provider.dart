@@ -12,7 +12,7 @@ class ThemeNotifier extends Notifier<ThemeMode> {
   @override
   ThemeMode build() {
     _loadTheme();
-    return ThemeMode.dark; // Default to dark
+    return ThemeMode.system; // default: follow OS (dual-theme ready)
   }
 
   Future<void> _loadTheme() async {
